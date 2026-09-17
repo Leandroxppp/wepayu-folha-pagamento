@@ -30,5 +30,5 @@ bin/
 
 ### WePayU - gerados em tempo de execução ###
 wepayu.db
-folha-*.txt
+/folha-*.txt
 demo-folha*.txt
