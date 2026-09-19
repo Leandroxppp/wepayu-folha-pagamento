@@ -37,6 +37,9 @@ src/
   br/ufal/ic/p2/wepayu/
     Facade.java                -> interface usada pelos testes
     Sistema.java                -> regras de negocio (folha, cadastro, etc)
+    excecoes/                   -> uma classe por tipo de erro (EmpregadoNaoExiste,
+                                    SalarioNulo, TipoInvalido etc), todas
+                                    extends Exception com a mensagem fixa
     models/                     -> Empregado e subtipos, CartaoPonto,
                                     ResultadoVenda, TaxaServico,
                                     MembroSindicato, MetodoPagamento
@@ -45,6 +48,11 @@ src/
 
 A `Sistema` nao sabe nada sobre a linguagem de scripts do EasyAccept, quem
 traduz comando -> metodo e a `Facade`.
+
+Cada metodo declara exatamente quais excecoes pode lancar (`throws
+NomeNulo, EnderecoNulo, TipoInvalido, ...`), sem usar `Exception`
+generico em nenhum lugar - cada erro tem sua propria classe em
+`excecoes/`, com a mensagem fixa no construtor.
 
 ## Algumas decisoes de implementacao
 

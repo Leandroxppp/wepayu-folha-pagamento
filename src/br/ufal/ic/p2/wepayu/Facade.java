@@ -1,5 +1,7 @@
 package br.ufal.ic.p2.wepayu;
 
+import br.ufal.ic.p2.wepayu.excecoes.*;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -63,164 +65,223 @@ public class Facade {
         }
     }
 
-    private void checarEncerrado() throws Exception {
+    private void checarEncerrado() throws SistemaEncerrado {
         if (sistema.isEncerrado()) {
-            throw new Exception("Nao pode dar comandos depois de encerrarSistema.");
+            throw new SistemaEncerrado();
         }
-    }
-
-    private interface Mutacao {
-        void executar(Sistema s) throws Exception;
-    }
-
-    private interface MutacaoComRetorno<T> {
-        T executar(Sistema s) throws Exception;
-    }
-
-    private void executarMutacao(Mutacao m) throws Exception {
-        checarEncerrado();
-        Sistema copia = clonar(sistema);
-        m.executar(copia);
-        pilhaUndo.push(sistema);
-        pilhaRedo.clear();
-        sistema = copia;
-    }
-
-    private <T> T executarMutacaoComRetorno(MutacaoComRetorno<T> m) throws Exception {
-        checarEncerrado();
-        Sistema copia = clonar(sistema);
-        T resultado = m.executar(copia);
-        pilhaUndo.push(sistema);
-        pilhaRedo.clear();
-        sistema = copia;
-        return resultado;
     }
 
     // comandos gerais
 
-    public void zerarSistema() throws Exception {
+    public void zerarSistema() throws SistemaEncerrado {
         checarEncerrado();
         pilhaUndo.push(sistema);
         pilhaRedo.clear();
         sistema = new Sistema();
     }
 
-    public void encerrarSistema() throws Exception {
+    public void encerrarSistema() throws SistemaEncerrado {
         checarEncerrado();
         salvarNoDisco();
         sistema.setEncerrado(true);
     }
 
-    public void undo() throws Exception {
+    public void undo() throws SistemaEncerrado, SemComandoDesfazer {
         checarEncerrado();
         if (pilhaUndo.isEmpty()) {
-            throw new Exception("Nao ha comando a desfazer.");
+            throw new SemComandoDesfazer();
         }
         pilhaRedo.push(sistema);
         sistema = pilhaUndo.pop();
     }
 
-    public void redo() throws Exception {
+    public void redo() throws SistemaEncerrado, SemComandoRefazer {
         checarEncerrado();
         if (pilhaRedo.isEmpty()) {
-            throw new Exception("Nao ha comando a refazer.");
+            throw new SemComandoRefazer();
         }
         pilhaUndo.push(sistema);
         sistema = pilhaRedo.pop();
     }
 
-    public String getNumeroDeEmpregados() throws Exception {
+    public String getNumeroDeEmpregados() throws SistemaEncerrado {
         checarEncerrado();
         return String.valueOf(sistema.getNumeroDeEmpregados());
     }
 
     // empregados: criação, remoção, consulta e alteração
 
-    public String criarEmpregado(String nome, String endereco, String tipo, String salario) throws Exception {
-        return executarMutacaoComRetorno(s -> s.criarEmpregado(nome, endereco, tipo, salario));
+    public String criarEmpregado(String nome, String endereco, String tipo, String salario)
+            throws SistemaEncerrado, NomeNulo, EnderecoNulo, TipoInvalido, TipoNaoAplicavel, SalarioNulo,
+            SalarioNaoNumerico, SalarioNegativo {
+        checarEncerrado();
+        Sistema copia = clonar(sistema);
+        String id = copia.criarEmpregado(nome, endereco, tipo, salario);
+        pilhaUndo.push(sistema);
+        pilhaRedo.clear();
+        sistema = copia;
+        return id;
     }
 
     public String criarEmpregado(String nome, String endereco, String tipo, String salario, String comissao)
-            throws Exception {
-        return executarMutacaoComRetorno(s -> s.criarEmpregado(nome, endereco, tipo, salario, comissao));
+            throws SistemaEncerrado, NomeNulo, EnderecoNulo, TipoInvalido, TipoNaoAplicavel, SalarioNulo,
+            SalarioNaoNumerico, SalarioNegativo, ComissaoNula, ComissaoNaoNumerica, ComissaoNegativa {
+        checarEncerrado();
+        Sistema copia = clonar(sistema);
+        String id = copia.criarEmpregado(nome, endereco, tipo, salario, comissao);
+        pilhaUndo.push(sistema);
+        pilhaRedo.clear();
+        sistema = copia;
+        return id;
     }
 
-    public void removerEmpregado(String emp) throws Exception {
-        executarMutacao(s -> s.removerEmpregado(emp));
+    public void removerEmpregado(String emp) throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste {
+        checarEncerrado();
+        Sistema copia = clonar(sistema);
+        copia.removerEmpregado(emp);
+        pilhaUndo.push(sistema);
+        pilhaRedo.clear();
+        sistema = copia;
     }
 
-    public String getEmpregadoPorNome(String nome, int indice) throws Exception {
+    public String getEmpregadoPorNome(String nome, int indice) throws SistemaEncerrado, EmpregadoNaoEncontradoPorNome {
         checarEncerrado();
         return sistema.getEmpregadoPorNome(nome, indice);
     }
 
-    public String getAtributoEmpregado(String emp, String atributo) throws Exception {
+    public String getAtributoEmpregado(String emp, String atributo)
+            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, AtributoNaoExiste,
+            EmpregadoNaoComissionado, EmpregadoNaoSindicalizado, EmpregadoNaoRecebeEmBanco {
         checarEncerrado();
         return sistema.getAtributoEmpregado(emp, atributo);
     }
 
-    public void alteraEmpregado(String emp, String atributo, String valor) throws Exception {
-        executarMutacao(s -> s.alteraEmpregado(emp, atributo, valor));
+    public void alteraEmpregado(String emp, String atributo, String valor)
+            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, AtributoNaoExiste, NomeNulo,
+            EnderecoNulo, TipoInvalido, SalarioNulo, SalarioNaoNumerico, SalarioNegativo, EmpregadoNaoComissionado,
+            ComissaoNula, ComissaoNaoNumerica, ComissaoNegativa, ValorNaoBooleano, IdentificacaoSindicatoNula,
+            BancoNulo, MetodoPagamentoInvalido {
+        checarEncerrado();
+        Sistema copia = clonar(sistema);
+        copia.alteraEmpregado(emp, atributo, valor);
+        pilhaUndo.push(sistema);
+        pilhaRedo.clear();
+        sistema = copia;
     }
 
-    public void alteraEmpregado(String emp, String atributo, String valor, String extra) throws Exception {
-        executarMutacao(s -> s.alteraEmpregado(emp, atributo, valor, extra));
+    public void alteraEmpregado(String emp, String atributo, String valor, String extra)
+            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, AtributoNaoExiste, TipoInvalido,
+            SalarioNulo, SalarioNaoNumerico, SalarioNegativo, ComissaoNula, ComissaoNaoNumerica, ComissaoNegativa {
+        checarEncerrado();
+        Sistema copia = clonar(sistema);
+        copia.alteraEmpregado(emp, atributo, valor, extra);
+        pilhaUndo.push(sistema);
+        pilhaRedo.clear();
+        sistema = copia;
     }
 
     public void alteraEmpregado(String emp, String atributo, String valor, String idSindicato, String taxaSindical)
-            throws Exception {
-        executarMutacao(s -> s.alteraEmpregado(emp, atributo, valor, idSindicato, taxaSindical));
+            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, AtributoNaoExiste,
+            ValorNaoBooleano, IdentificacaoSindicatoNula, TaxaSindicalNula, TaxaSindicalNaoNumerica,
+            TaxaSindicalNegativa, IdSindicatoDuplicado {
+        checarEncerrado();
+        Sistema copia = clonar(sistema);
+        copia.alteraEmpregado(emp, atributo, valor, idSindicato, taxaSindical);
+        pilhaUndo.push(sistema);
+        pilhaRedo.clear();
+        sistema = copia;
     }
 
     public void alteraEmpregado(String emp, String atributo, String valor1, String banco, String agencia,
-                                 String contaCorrente) throws Exception {
-        executarMutacao(s -> s.alteraEmpregado(emp, atributo, valor1, banco, agencia, contaCorrente));
+                                 String contaCorrente)
+            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, AtributoNaoExiste,
+            MetodoPagamentoInvalido, BancoNulo, AgenciaNula, ContaCorrenteNula {
+        checarEncerrado();
+        Sistema copia = clonar(sistema);
+        copia.alteraEmpregado(emp, atributo, valor1, banco, agencia, contaCorrente);
+        pilhaUndo.push(sistema);
+        pilhaRedo.clear();
+        sistema = copia;
     }
 
     // lançamentos
 
-    public void lancaCartao(String emp, String data, String horas) throws Exception {
-        executarMutacao(s -> s.lancaCartao(emp, data, horas));
+    public void lancaCartao(String emp, String data, String horas)
+            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoHorista,
+            DataInvalida, HorasNula, HorasNaoNumerica, HorasNaoPositivas {
+        checarEncerrado();
+        Sistema copia = clonar(sistema);
+        copia.lancaCartao(emp, data, horas);
+        pilhaUndo.push(sistema);
+        pilhaRedo.clear();
+        sistema = copia;
     }
 
-    public void lancaVenda(String emp, String data, String valor) throws Exception {
-        executarMutacao(s -> s.lancaVenda(emp, data, valor));
+    public void lancaVenda(String emp, String data, String valor)
+            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoComissionado,
+            DataInvalida, ValorNulo, ValorNaoNumerico, ValorNaoPositivo {
+        checarEncerrado();
+        Sistema copia = clonar(sistema);
+        copia.lancaVenda(emp, data, valor);
+        pilhaUndo.push(sistema);
+        pilhaRedo.clear();
+        sistema = copia;
     }
 
-    public void lancaTaxaServico(String membro, String data, String valor) throws Exception {
-        executarMutacao(s -> s.lancaTaxaServico(membro, data, valor));
+    public void lancaTaxaServico(String membro, String data, String valor)
+            throws SistemaEncerrado, IdentificacaoMembroNula, MembroNaoExiste, DataInvalida, ValorNulo,
+            ValorNaoNumerico, ValorNaoPositivo {
+        checarEncerrado();
+        Sistema copia = clonar(sistema);
+        copia.lancaTaxaServico(membro, data, valor);
+        pilhaUndo.push(sistema);
+        pilhaRedo.clear();
+        sistema = copia;
     }
 
     // consultas de período
 
-    public String getHorasNormaisTrabalhadas(String emp, String dataInicial, String dataFinal) throws Exception {
+    public String getHorasNormaisTrabalhadas(String emp, String dataInicial, String dataFinal)
+            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoHorista,
+            DataInicialInvalida, DataFinalInvalida, DataInicialPosteriorFinal {
         checarEncerrado();
         return sistema.getHorasNormaisTrabalhadas(emp, dataInicial, dataFinal);
     }
 
-    public String getHorasExtrasTrabalhadas(String emp, String dataInicial, String dataFinal) throws Exception {
+    public String getHorasExtrasTrabalhadas(String emp, String dataInicial, String dataFinal)
+            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoHorista,
+            DataInicialInvalida, DataFinalInvalida, DataInicialPosteriorFinal {
         checarEncerrado();
         return sistema.getHorasExtrasTrabalhadas(emp, dataInicial, dataFinal);
     }
 
-    public String getVendasRealizadas(String emp, String dataInicial, String dataFinal) throws Exception {
+    public String getVendasRealizadas(String emp, String dataInicial, String dataFinal)
+            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoComissionado,
+            DataInicialInvalida, DataFinalInvalida, DataInicialPosteriorFinal {
         checarEncerrado();
         return sistema.getVendasRealizadas(emp, dataInicial, dataFinal);
     }
 
-    public String getTaxasServico(String emp, String dataInicial, String dataFinal) throws Exception {
+    public String getTaxasServico(String emp, String dataInicial, String dataFinal)
+            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoSindicalizado,
+            DataInicialInvalida, DataFinalInvalida, DataInicialPosteriorFinal {
         checarEncerrado();
         return sistema.getTaxasServico(emp, dataInicial, dataFinal);
     }
 
     // folha de pagamento
 
-    public String totalFolha(String data) throws Exception {
+    public String totalFolha(String data) throws SistemaEncerrado, DataInvalida {
         checarEncerrado();
         return sistema.totalFolha(data);
     }
 
-    public void rodaFolha(String data, String saida) throws Exception {
-        executarMutacao(s -> s.rodaFolha(data, saida));
+    public void rodaFolha(String data, String saida) throws SistemaEncerrado, DataInvalida, ErroArquivoSaida {
+        checarEncerrado();
+        Sistema copia = clonar(sistema);
+        copia.rodaFolha(data, saida);
+        pilhaUndo.push(sistema);
+        pilhaRedo.clear();
+        sistema = copia;
     }
 }

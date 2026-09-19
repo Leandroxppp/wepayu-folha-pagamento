@@ -9,7 +9,8 @@ import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 
 // parsing e formatacao de numeros/datas no padrao usado nos scripts de
-// teste (virgula decimal, data d/M/yyyy)
+// teste (virgula decimal, data d/M/yyyy). So faz o parsing "cru" - quem
+// decide qual excecao lancar em caso de erro e a Sistema.
 public class Formatos {
 
     private static final DateTimeFormatter FORMATO_DATA =
@@ -18,40 +19,28 @@ public class Formatos {
     private Formatos() {
     }
 
-    // parseia um numero em formato br (23,32 -> 23.32), validando nulo,
-    // formato numerico e sinal de acordo com as mensagens passadas
-    public static BigDecimal parseValor(String valor, String msgNulo, String msgNumerico,
-                                         String msgSinal, boolean estritamentePositivo) throws Exception {
-        if (valor == null || valor.trim().isEmpty()) {
-            throw new Exception(msgNulo);
+    // tenta converter "23,32" -> 23.32; devolve null se nao for um numero valido
+    public static BigDecimal tentarParseNumero(String valor) {
+        if (valor == null) {
+            return null;
         }
         String texto = valor.trim().replace(',', '.');
-        BigDecimal bd;
         try {
-            bd = new BigDecimal(texto);
+            return new BigDecimal(texto);
         } catch (NumberFormatException e) {
-            throw new Exception(msgNumerico);
+            return null;
         }
-        if (estritamentePositivo) {
-            if (bd.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new Exception(msgSinal);
-            }
-        } else {
-            if (bd.compareTo(BigDecimal.ZERO) < 0) {
-                throw new Exception(msgSinal);
-            }
-        }
-        return bd;
     }
 
-    public static LocalDate parseData(String data, String msgErro) throws Exception {
+    // tenta converter "3/1/2005" -> LocalDate; devolve null se a data for invalida
+    public static LocalDate tentarParseData(String data) {
         if (data == null || data.trim().isEmpty()) {
-            throw new Exception(msgErro);
+            return null;
         }
         try {
             return LocalDate.parse(data.trim(), FORMATO_DATA);
         } catch (DateTimeParseException e) {
-            throw new Exception(msgErro);
+            return null;
         }
     }
 

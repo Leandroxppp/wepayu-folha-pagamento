@@ -1,5 +1,6 @@
 package br.ufal.ic.p2.wepayu;
 
+import br.ufal.ic.p2.wepayu.excecoes.*;
 import br.ufal.ic.p2.wepayu.models.*;
 import br.ufal.ic.p2.wepayu.util.Formatos;
 
@@ -47,15 +48,16 @@ public class Sistema implements Serializable {
 
     // Criação / remoção
 
-    public String criarEmpregado(String nome, String endereco, String tipo, String salario) throws Exception {
+    public String criarEmpregado(String nome, String endereco, String tipo, String salario)
+            throws NomeNulo, EnderecoNulo, TipoInvalido, TipoNaoAplicavel, SalarioNulo, SalarioNaoNumerico,
+            SalarioNegativo {
         validarNome(nome);
         validarEndereco(endereco);
         validarTipoValido(tipo);
         if (tipo.equals("comissionado")) {
-            throw new Exception("Tipo nao aplicavel.");
+            throw new TipoNaoAplicavel();
         }
-        BigDecimal sal = Formatos.parseValor(salario, "Salario nao pode ser nulo.", "Salario deve ser numerico.",
-                "Salario deve ser nao-negativo.", false);
+        BigDecimal sal = validarSalario(salario);
         String id = proximoId();
         Empregado e;
         if (tipo.equals("horista")) {
@@ -68,31 +70,30 @@ public class Sistema implements Serializable {
     }
 
     public String criarEmpregado(String nome, String endereco, String tipo, String salario, String comissao)
-            throws Exception {
+            throws NomeNulo, EnderecoNulo, TipoInvalido, TipoNaoAplicavel, SalarioNulo, SalarioNaoNumerico,
+            SalarioNegativo, ComissaoNula, ComissaoNaoNumerica, ComissaoNegativa {
         validarNome(nome);
         validarEndereco(endereco);
         validarTipoValido(tipo);
         if (!tipo.equals("comissionado")) {
-            throw new Exception("Tipo nao aplicavel.");
+            throw new TipoNaoAplicavel();
         }
-        BigDecimal sal = Formatos.parseValor(salario, "Salario nao pode ser nulo.", "Salario deve ser numerico.",
-                "Salario deve ser nao-negativo.", false);
-        BigDecimal com = Formatos.parseValor(comissao, "Comissao nao pode ser nula.", "Comissao deve ser numerica.",
-                "Comissao deve ser nao-negativa.", false);
+        BigDecimal sal = validarSalario(salario);
+        BigDecimal com = validarComissao(comissao);
         String id = proximoId();
         Empregado e = new EmpregadoComissionado(id, nome, endereco, sal, com);
         empregados.put(id, e);
         return id;
     }
 
-    public void removerEmpregado(String emp) throws Exception {
+    public void removerEmpregado(String emp) throws IdentificacaoEmpregadoNula, EmpregadoNaoExiste {
         Empregado e = buscarEmpregado(emp);
         empregados.remove(e.getId());
     }
 
     // Consultas
 
-    public String getEmpregadoPorNome(String nome, int indice) throws Exception {
+    public String getEmpregadoPorNome(String nome, int indice) throws EmpregadoNaoEncontradoPorNome {
         int contador = 0;
         for (Empregado e : empregados.values()) {
             if (e.getNome().contains(nome)) {
@@ -102,17 +103,20 @@ public class Sistema implements Serializable {
                 }
             }
         }
-        throw new Exception("Nao ha empregado com esse nome.");
+        throw new EmpregadoNaoEncontradoPorNome();
     }
 
-    public String getAtributoEmpregado(String emp, String atributo) throws Exception {
+    public String getAtributoEmpregado(String emp, String atributo)
+            throws IdentificacaoEmpregadoNula, EmpregadoNaoExiste, AtributoNaoExiste, EmpregadoNaoComissionado,
+            EmpregadoNaoSindicalizado, EmpregadoNaoRecebeEmBanco {
         Empregado e = buscarEmpregado(emp);
         return valorDoAtributo(e, atributo);
     }
 
-    private String valorDoAtributo(Empregado e, String atributo) throws Exception {
+    private String valorDoAtributo(Empregado e, String atributo)
+            throws AtributoNaoExiste, EmpregadoNaoComissionado, EmpregadoNaoSindicalizado, EmpregadoNaoRecebeEmBanco {
         if (atributo == null) {
-            throw new Exception("Atributo nao existe.");
+            throw new AtributoNaoExiste();
         }
         switch (atributo) {
             case "nome":
@@ -125,49 +129,53 @@ public class Sistema implements Serializable {
                 return Formatos.formatarMoeda(e.getSalarioBase());
             case "comissao":
                 if (!(e instanceof EmpregadoComissionado)) {
-                    throw new Exception("Empregado nao eh comissionado.");
+                    throw new EmpregadoNaoComissionado();
                 }
                 return Formatos.formatarMoeda(((EmpregadoComissionado) e).getTaxaComissao());
             case "sindicalizado":
                 return e.isSindicalizado() ? "true" : "false";
             case "idSindicato":
                 if (!e.isSindicalizado()) {
-                    throw new Exception("Empregado nao eh sindicalizado.");
+                    throw new EmpregadoNaoSindicalizado();
                 }
                 return e.getSindicato().getIdMembro();
             case "taxaSindical":
                 if (!e.isSindicalizado()) {
-                    throw new Exception("Empregado nao eh sindicalizado.");
+                    throw new EmpregadoNaoSindicalizado();
                 }
                 return Formatos.formatarMoeda(e.getSindicato().getTaxaSindical());
             case "metodoPagamento":
                 return e.getMetodoPagamento().getTag();
             case "banco":
                 if (!(e.getMetodoPagamento() instanceof Banco)) {
-                    throw new Exception("Empregado nao recebe em banco.");
+                    throw new EmpregadoNaoRecebeEmBanco();
                 }
                 return ((Banco) e.getMetodoPagamento()).getBanco();
             case "agencia":
                 if (!(e.getMetodoPagamento() instanceof Banco)) {
-                    throw new Exception("Empregado nao recebe em banco.");
+                    throw new EmpregadoNaoRecebeEmBanco();
                 }
                 return ((Banco) e.getMetodoPagamento()).getAgencia();
             case "contaCorrente":
                 if (!(e.getMetodoPagamento() instanceof Banco)) {
-                    throw new Exception("Empregado nao recebe em banco.");
+                    throw new EmpregadoNaoRecebeEmBanco();
                 }
                 return ((Banco) e.getMetodoPagamento()).getContaCorrente();
             default:
-                throw new Exception("Atributo nao existe.");
+                throw new AtributoNaoExiste();
         }
     }
 
     // Alteração de atributos (uma sobrecarga por número de argumentos)
 
-    public void alteraEmpregado(String emp, String atributo, String valor) throws Exception {
+    public void alteraEmpregado(String emp, String atributo, String valor)
+            throws IdentificacaoEmpregadoNula, EmpregadoNaoExiste, AtributoNaoExiste, NomeNulo, EnderecoNulo,
+            TipoInvalido, SalarioNulo, SalarioNaoNumerico, SalarioNegativo, EmpregadoNaoComissionado, ComissaoNula,
+            ComissaoNaoNumerica, ComissaoNegativa, ValorNaoBooleano, IdentificacaoSindicatoNula, BancoNulo,
+            MetodoPagamentoInvalido {
         Empregado e = buscarEmpregado(emp);
         if (atributo == null) {
-            throw new Exception("Atributo nao existe.");
+            throw new AtributoNaoExiste();
         }
         switch (atributo) {
             case "nome":
@@ -182,30 +190,28 @@ public class Sistema implements Serializable {
                 alterarTipoSimples(e, valor);
                 break;
             case "salario": {
-                BigDecimal sal = Formatos.parseValor(valor, "Salario nao pode ser nulo.",
-                        "Salario deve ser numerico.", "Salario deve ser nao-negativo.", false);
+                BigDecimal sal = validarSalario(valor);
                 e.setSalarioBase(sal);
                 break;
             }
             case "comissao": {
                 if (!(e instanceof EmpregadoComissionado)) {
-                    throw new Exception("Empregado nao eh comissionado.");
+                    throw new EmpregadoNaoComissionado();
                 }
-                BigDecimal com = Formatos.parseValor(valor, "Comissao nao pode ser nula.",
-                        "Comissao deve ser numerica.", "Comissao deve ser nao-negativa.", false);
+                BigDecimal com = validarComissao(valor);
                 ((EmpregadoComissionado) e).setTaxaComissao(com);
                 break;
             }
             case "sindicalizado": {
                 if (!"true".equals(valor) && !"false".equals(valor)) {
-                    throw new Exception("Valor deve ser true ou false.");
+                    throw new ValorNaoBooleano();
                 }
                 if ("false".equals(valor)) {
                     e.setSindicalizado(false);
                     e.setSindicato(null);
                 } else {
-                    // "true" sem idSindicato/taxaSindical: dados obrigatórios ausentes.
-                    throw new Exception("Identificacao do sindicato nao pode ser nula.");
+                    // "true" sem idSindicato/taxaSindical: dados obrigatorios ausentes.
+                    throw new IdentificacaoSindicatoNula();
                 }
                 break;
             }
@@ -215,33 +221,33 @@ public class Sistema implements Serializable {
                 } else if ("correios".equals(valor)) {
                     e.setMetodoPagamento(new Correios());
                 } else if ("banco".equals(valor)) {
-                    throw new Exception("Banco nao pode ser nulo.");
+                    throw new BancoNulo();
                 } else {
-                    throw new Exception("Metodo de pagamento invalido.");
+                    throw new MetodoPagamentoInvalido();
                 }
                 break;
             }
             default:
-                throw new Exception("Atributo nao existe.");
+                throw new AtributoNaoExiste();
         }
     }
 
-    public void alteraEmpregado(String emp, String atributo, String valor, String extra) throws Exception {
+    public void alteraEmpregado(String emp, String atributo, String valor, String extra)
+            throws IdentificacaoEmpregadoNula, EmpregadoNaoExiste, AtributoNaoExiste, TipoInvalido, SalarioNulo,
+            SalarioNaoNumerico, SalarioNegativo, ComissaoNula, ComissaoNaoNumerica, ComissaoNegativa {
         Empregado e = buscarEmpregado(emp);
         if (!"tipo".equals(atributo)) {
-            throw new Exception("Atributo nao existe.");
+            throw new AtributoNaoExiste();
         }
         if (valor == null || !(valor.equals("horista") || valor.equals("assalariado") || valor.equals("comissionado"))) {
-            throw new Exception("Tipo invalido.");
+            throw new TipoInvalido();
         }
         Empregado novo;
         if (valor.equals("horista")) {
-            BigDecimal sal = Formatos.parseValor(extra, "Salario nao pode ser nulo.", "Salario deve ser numerico.",
-                    "Salario deve ser nao-negativo.", false);
+            BigDecimal sal = validarSalario(extra);
             novo = new EmpregadoHorista(e.getId(), e.getNome(), e.getEndereco(), sal);
         } else if (valor.equals("comissionado")) {
-            BigDecimal com = Formatos.parseValor(extra, "Comissao nao pode ser nula.", "Comissao deve ser numerica.",
-                    "Comissao deve ser nao-negativa.", false);
+            BigDecimal com = validarComissao(extra);
             novo = new EmpregadoComissionado(e.getId(), e.getNome(), e.getEndereco(), e.getSalarioBase(), com);
         } else {
             novo = new EmpregadoAssalariado(e.getId(), e.getNome(), e.getEndereco(), e.getSalarioBase());
@@ -251,23 +257,24 @@ public class Sistema implements Serializable {
     }
 
     public void alteraEmpregado(String emp, String atributo, String valor, String idSindicato, String taxaSindical)
-            throws Exception {
+            throws IdentificacaoEmpregadoNula, EmpregadoNaoExiste, AtributoNaoExiste, ValorNaoBooleano,
+            IdentificacaoSindicatoNula, TaxaSindicalNula, TaxaSindicalNaoNumerica, TaxaSindicalNegativa,
+            IdSindicatoDuplicado {
         Empregado e = buscarEmpregado(emp);
         if (!"sindicalizado".equals(atributo)) {
-            throw new Exception("Atributo nao existe.");
+            throw new AtributoNaoExiste();
         }
         if (!"true".equals(valor) && !"false".equals(valor)) {
-            throw new Exception("Valor deve ser true ou false.");
+            throw new ValorNaoBooleano();
         }
         if (idSindicato == null || idSindicato.trim().isEmpty()) {
-            throw new Exception("Identificacao do sindicato nao pode ser nula.");
+            throw new IdentificacaoSindicatoNula();
         }
-        BigDecimal taxa = Formatos.parseValor(taxaSindical, "Taxa sindical nao pode ser nula.",
-                "Taxa sindical deve ser numerica.", "Taxa sindical deve ser nao-negativa.", false);
+        BigDecimal taxa = validarTaxaSindical(taxaSindical);
         for (Empregado outro : empregados.values()) {
             if (outro != e && outro.isSindicalizado() && outro.getSindicato() != null
                     && idSindicato.equals(outro.getSindicato().getIdMembro())) {
-                throw new Exception("Ha outro empregado com esta identificacao de sindicato");
+                throw new IdSindicatoDuplicado();
             }
         }
         MembroSindicato ms = new MembroSindicato(idSindicato, taxa);
@@ -277,29 +284,32 @@ public class Sistema implements Serializable {
     }
 
     public void alteraEmpregado(String emp, String atributo, String valor1, String banco, String agencia,
-                                 String contaCorrente) throws Exception {
+                                 String contaCorrente)
+            throws IdentificacaoEmpregadoNula, EmpregadoNaoExiste, AtributoNaoExiste, MetodoPagamentoInvalido,
+            BancoNulo, AgenciaNula, ContaCorrenteNula {
         Empregado e = buscarEmpregado(emp);
         if (!"metodoPagamento".equals(atributo)) {
-            throw new Exception("Atributo nao existe.");
+            throw new AtributoNaoExiste();
         }
         if (!"banco".equals(valor1)) {
-            throw new Exception("Metodo de pagamento invalido.");
+            throw new MetodoPagamentoInvalido();
         }
         if (banco == null || banco.trim().isEmpty()) {
-            throw new Exception("Banco nao pode ser nulo.");
+            throw new BancoNulo();
         }
         if (agencia == null || agencia.trim().isEmpty()) {
-            throw new Exception("Agencia nao pode ser nulo.");
+            throw new AgenciaNula();
         }
         if (contaCorrente == null || contaCorrente.trim().isEmpty()) {
-            throw new Exception("Conta corrente nao pode ser nulo.");
+            throw new ContaCorrenteNula();
         }
         e.setMetodoPagamento(new Banco(banco, agencia, contaCorrente));
     }
 
-    private void alterarTipoSimples(Empregado e, String valor) throws Exception {
+    private void alterarTipoSimples(Empregado e, String valor)
+            throws TipoInvalido, SalarioNulo, SalarioNaoNumerico, SalarioNegativo {
         if (valor == null || !(valor.equals("horista") || valor.equals("assalariado") || valor.equals("comissionado"))) {
-            throw new Exception("Tipo invalido.");
+            throw new TipoInvalido();
         }
         BigDecimal salarioAnterior = e.getSalarioBase();
         Empregado novo;
@@ -323,47 +333,52 @@ public class Sistema implements Serializable {
 
     // Lançamentos
 
-    public void lancaCartao(String emp, String data, String horas) throws Exception {
+    public void lancaCartao(String emp, String data, String horas)
+            throws IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoHorista, DataInvalida, HorasNula,
+            HorasNaoNumerica, HorasNaoPositivas {
         Empregado e = buscarEmpregado(emp);
         if (!(e instanceof EmpregadoHorista)) {
-            throw new Exception("Empregado nao eh horista.");
+            throw new EmpregadoNaoHorista();
         }
-        LocalDate d = Formatos.parseData(data, "Data invalida.");
-        BigDecimal h = Formatos.parseValor(horas, "Horas nao pode ser nulo.", "Horas deve ser numerico.",
-                "Horas devem ser positivas.", true);
+        LocalDate d = validarData(data);
+        BigDecimal h = validarHoras(horas);
         ((EmpregadoHorista) e).getCartoes().add(new CartaoPonto(d, h));
     }
 
-    public void lancaVenda(String emp, String data, String valor) throws Exception {
+    public void lancaVenda(String emp, String data, String valor)
+            throws IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoComissionado, DataInvalida, ValorNulo,
+            ValorNaoNumerico, ValorNaoPositivo {
         Empregado e = buscarEmpregado(emp);
         if (!(e instanceof EmpregadoComissionado)) {
-            throw new Exception("Empregado nao eh comissionado.");
+            throw new EmpregadoNaoComissionado();
         }
-        LocalDate d = Formatos.parseData(data, "Data invalida.");
-        BigDecimal v = Formatos.parseValor(valor, "Valor nao pode ser nulo.", "Valor deve ser numerico.",
-                "Valor deve ser positivo.", true);
+        LocalDate d = validarData(data);
+        BigDecimal v = validarValorLancamento(valor);
         ((EmpregadoComissionado) e).getVendas().add(new ResultadoVenda(d, v));
     }
 
-    public void lancaTaxaServico(String membro, String data, String valor) throws Exception {
+    public void lancaTaxaServico(String membro, String data, String valor)
+            throws IdentificacaoMembroNula, MembroNaoExiste, DataInvalida, ValorNulo, ValorNaoNumerico,
+            ValorNaoPositivo {
         Empregado e = buscarPorIdSindicato(membro);
-        LocalDate d = Formatos.parseData(data, "Data invalida.");
-        BigDecimal v = Formatos.parseValor(valor, "Valor nao pode ser nulo.", "Valor deve ser numerico.",
-                "Valor deve ser positivo.", true);
+        LocalDate d = validarData(data);
+        BigDecimal v = validarValorLancamento(valor);
         e.getSindicato().getTaxasServico().add(new TaxaServico(d, v));
     }
 
     // Consultas de período (intervalo [dataInicial, dataFinal) )
 
-    public String getHorasNormaisTrabalhadas(String emp, String dataInicial, String dataFinal) throws Exception {
+    public String getHorasNormaisTrabalhadas(String emp, String dataInicial, String dataFinal)
+            throws IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoHorista, DataInicialInvalida,
+            DataFinalInvalida, DataInicialPosteriorFinal {
         Empregado e = buscarEmpregado(emp);
         if (!(e instanceof EmpregadoHorista)) {
-            throw new Exception("Empregado nao eh horista.");
+            throw new EmpregadoNaoHorista();
         }
-        LocalDate di = Formatos.parseData(dataInicial, "Data inicial invalida.");
-        LocalDate df = Formatos.parseData(dataFinal, "Data final invalida.");
+        LocalDate di = validarDataInicial(dataInicial);
+        LocalDate df = validarDataFinal(dataFinal);
         if (di.isAfter(df)) {
-            throw new Exception("Data inicial nao pode ser posterior aa data final.");
+            throw new DataInicialPosteriorFinal();
         }
         BigDecimal total = BigDecimal.ZERO;
         for (CartaoPonto c : ((EmpregadoHorista) e).getCartoes()) {
@@ -375,15 +390,17 @@ public class Sistema implements Serializable {
         return Formatos.formatarHoras(total);
     }
 
-    public String getHorasExtrasTrabalhadas(String emp, String dataInicial, String dataFinal) throws Exception {
+    public String getHorasExtrasTrabalhadas(String emp, String dataInicial, String dataFinal)
+            throws IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoHorista, DataInicialInvalida,
+            DataFinalInvalida, DataInicialPosteriorFinal {
         Empregado e = buscarEmpregado(emp);
         if (!(e instanceof EmpregadoHorista)) {
-            throw new Exception("Empregado nao eh horista.");
+            throw new EmpregadoNaoHorista();
         }
-        LocalDate di = Formatos.parseData(dataInicial, "Data inicial invalida.");
-        LocalDate df = Formatos.parseData(dataFinal, "Data final invalida.");
+        LocalDate di = validarDataInicial(dataInicial);
+        LocalDate df = validarDataFinal(dataFinal);
         if (di.isAfter(df)) {
-            throw new Exception("Data inicial nao pode ser posterior aa data final.");
+            throw new DataInicialPosteriorFinal();
         }
         BigDecimal total = BigDecimal.ZERO;
         for (CartaoPonto c : ((EmpregadoHorista) e).getCartoes()) {
@@ -397,15 +414,17 @@ public class Sistema implements Serializable {
         return Formatos.formatarHoras(total);
     }
 
-    public String getVendasRealizadas(String emp, String dataInicial, String dataFinal) throws Exception {
+    public String getVendasRealizadas(String emp, String dataInicial, String dataFinal)
+            throws IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoComissionado, DataInicialInvalida,
+            DataFinalInvalida, DataInicialPosteriorFinal {
         Empregado e = buscarEmpregado(emp);
         if (!(e instanceof EmpregadoComissionado)) {
-            throw new Exception("Empregado nao eh comissionado.");
+            throw new EmpregadoNaoComissionado();
         }
-        LocalDate di = Formatos.parseData(dataInicial, "Data inicial invalida.");
-        LocalDate df = Formatos.parseData(dataFinal, "Data final invalida.");
+        LocalDate di = validarDataInicial(dataInicial);
+        LocalDate df = validarDataFinal(dataFinal);
         if (di.isAfter(df)) {
-            throw new Exception("Data inicial nao pode ser posterior aa data final.");
+            throw new DataInicialPosteriorFinal();
         }
         BigDecimal total = BigDecimal.ZERO;
         for (ResultadoVenda v : ((EmpregadoComissionado) e).getVendas()) {
@@ -416,15 +435,17 @@ public class Sistema implements Serializable {
         return Formatos.formatarMoeda(total);
     }
 
-    public String getTaxasServico(String emp, String dataInicial, String dataFinal) throws Exception {
+    public String getTaxasServico(String emp, String dataInicial, String dataFinal)
+            throws IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoSindicalizado, DataInicialInvalida,
+            DataFinalInvalida, DataInicialPosteriorFinal {
         Empregado e = buscarEmpregado(emp);
         if (!e.isSindicalizado()) {
-            throw new Exception("Empregado nao eh sindicalizado.");
+            throw new EmpregadoNaoSindicalizado();
         }
-        LocalDate di = Formatos.parseData(dataInicial, "Data inicial invalida.");
-        LocalDate df = Formatos.parseData(dataFinal, "Data final invalida.");
+        LocalDate di = validarDataInicial(dataInicial);
+        LocalDate df = validarDataFinal(dataFinal);
         if (di.isAfter(df)) {
-            throw new Exception("Data inicial nao pode ser posterior aa data final.");
+            throw new DataInicialPosteriorFinal();
         }
         BigDecimal total = BigDecimal.ZERO;
         for (TaxaServico t : e.getSindicato().getTaxasServico()) {
@@ -453,7 +474,7 @@ public class Sistema implements Serializable {
         return Math.floorMod(dias, 14) == 0;
     }
 
-    /** desconto[0] e liquido[1], considerando o teto de "contracheque nunca negativo". */
+    // desconto[0] e liquido[1], considerando o teto de "contracheque nunca negativo"
     private BigDecimal[] calcularDescontos(Empregado e, LocalDate data, BigDecimal bruto, boolean persistir) {
         BigDecimal desconto = BigDecimal.ZERO;
         if (e.isSindicalizado()) {
@@ -561,8 +582,8 @@ public class Sistema implements Serializable {
         return resultado;
     }
 
-    public String totalFolha(String data) throws Exception {
-        LocalDate d = Formatos.parseData(data, "Data invalida.");
+    public String totalFolha(String data) throws DataInvalida {
+        LocalDate d = validarData(data);
         BigDecimal total = BigDecimal.ZERO;
         for (Empregado e : empregados.values()) {
             if (e instanceof EmpregadoComissionado) {
@@ -585,8 +606,8 @@ public class Sistema implements Serializable {
         return Formatos.formatarMoeda(total);
     }
 
-    public void rodaFolha(String data, String saida) throws Exception {
-        LocalDate d = Formatos.parseData(data, "Data invalida.");
+    public void rodaFolha(String data, String saida) throws DataInvalida, ErroArquivoSaida {
+        LocalDate d = validarData(data);
 
         List<EmpregadoHorista> horistas = new ArrayList<>();
         List<EmpregadoAssalariado> assalariados = new ArrayList<>();
@@ -691,11 +712,11 @@ public class Sistema implements Serializable {
         escreverArquivo(saida, sb.toString());
     }
 
-    private void escreverArquivo(String caminho, String conteudo) throws Exception {
+    private void escreverArquivo(String caminho, String conteudo) throws ErroArquivoSaida {
         try (FileWriter fw = new FileWriter(caminho)) {
             fw.write(conteudo);
         } catch (IOException ex) {
-            throw new Exception("Nao foi possivel escrever o arquivo de saida.");
+            throw new ErroArquivoSaida();
         }
     }
 
@@ -812,47 +833,142 @@ public class Sistema implements Serializable {
                 + " " + padLeft(Formatos.formatarMoeda(liq), w[6]);
     }
 
-    // Auxiliares de validação
+    // Auxiliares de validação - cada um decide qual excecao especifica lancar
 
-    private Empregado buscarEmpregado(String emp) throws Exception {
+    private Empregado buscarEmpregado(String emp) throws IdentificacaoEmpregadoNula, EmpregadoNaoExiste {
         if (emp == null || emp.trim().isEmpty()) {
-            throw new Exception("Identificacao do empregado nao pode ser nula.");
+            throw new IdentificacaoEmpregadoNula();
         }
         Empregado e = empregados.get(emp);
         if (e == null) {
-            throw new Exception("Empregado nao existe.");
+            throw new EmpregadoNaoExiste();
         }
         return e;
     }
 
-    private Empregado buscarPorIdSindicato(String membro) throws Exception {
+    private Empregado buscarPorIdSindicato(String membro) throws IdentificacaoMembroNula, MembroNaoExiste {
         if (membro == null || membro.trim().isEmpty()) {
-            throw new Exception("Identificacao do membro nao pode ser nula.");
+            throw new IdentificacaoMembroNula();
         }
         for (Empregado e : empregados.values()) {
             if (e.isSindicalizado() && e.getSindicato() != null && membro.equals(e.getSindicato().getIdMembro())) {
                 return e;
             }
         }
-        throw new Exception("Membro nao existe.");
+        throw new MembroNaoExiste();
     }
 
-    private void validarNome(String nome) throws Exception {
+    private void validarNome(String nome) throws NomeNulo {
         if (nome == null || nome.trim().isEmpty()) {
-            throw new Exception("Nome nao pode ser nulo.");
+            throw new NomeNulo();
         }
     }
 
-    private void validarEndereco(String endereco) throws Exception {
+    private void validarEndereco(String endereco) throws EnderecoNulo {
         if (endereco == null || endereco.trim().isEmpty()) {
-            throw new Exception("Endereco nao pode ser nulo.");
+            throw new EnderecoNulo();
         }
     }
 
-    private void validarTipoValido(String tipo) throws Exception {
+    private void validarTipoValido(String tipo) throws TipoInvalido {
         if (tipo == null || !(tipo.equals("horista") || tipo.equals("assalariado") || tipo.equals("comissionado"))) {
-            throw new Exception("Tipo invalido.");
+            throw new TipoInvalido();
         }
+    }
+
+    private BigDecimal validarSalario(String s) throws SalarioNulo, SalarioNaoNumerico, SalarioNegativo {
+        if (s == null || s.trim().isEmpty()) {
+            throw new SalarioNulo();
+        }
+        BigDecimal v = Formatos.tentarParseNumero(s);
+        if (v == null) {
+            throw new SalarioNaoNumerico();
+        }
+        if (v.compareTo(BigDecimal.ZERO) < 0) {
+            throw new SalarioNegativo();
+        }
+        return v;
+    }
+
+    private BigDecimal validarComissao(String s) throws ComissaoNula, ComissaoNaoNumerica, ComissaoNegativa {
+        if (s == null || s.trim().isEmpty()) {
+            throw new ComissaoNula();
+        }
+        BigDecimal v = Formatos.tentarParseNumero(s);
+        if (v == null) {
+            throw new ComissaoNaoNumerica();
+        }
+        if (v.compareTo(BigDecimal.ZERO) < 0) {
+            throw new ComissaoNegativa();
+        }
+        return v;
+    }
+
+    private BigDecimal validarTaxaSindical(String s)
+            throws TaxaSindicalNula, TaxaSindicalNaoNumerica, TaxaSindicalNegativa {
+        if (s == null || s.trim().isEmpty()) {
+            throw new TaxaSindicalNula();
+        }
+        BigDecimal v = Formatos.tentarParseNumero(s);
+        if (v == null) {
+            throw new TaxaSindicalNaoNumerica();
+        }
+        if (v.compareTo(BigDecimal.ZERO) < 0) {
+            throw new TaxaSindicalNegativa();
+        }
+        return v;
+    }
+
+    private BigDecimal validarHoras(String s) throws HorasNula, HorasNaoNumerica, HorasNaoPositivas {
+        if (s == null || s.trim().isEmpty()) {
+            throw new HorasNula();
+        }
+        BigDecimal v = Formatos.tentarParseNumero(s);
+        if (v == null) {
+            throw new HorasNaoNumerica();
+        }
+        if (v.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new HorasNaoPositivas();
+        }
+        return v;
+    }
+
+    private BigDecimal validarValorLancamento(String s) throws ValorNulo, ValorNaoNumerico, ValorNaoPositivo {
+        if (s == null || s.trim().isEmpty()) {
+            throw new ValorNulo();
+        }
+        BigDecimal v = Formatos.tentarParseNumero(s);
+        if (v == null) {
+            throw new ValorNaoNumerico();
+        }
+        if (v.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ValorNaoPositivo();
+        }
+        return v;
+    }
+
+    private LocalDate validarData(String s) throws DataInvalida {
+        LocalDate d = Formatos.tentarParseData(s);
+        if (d == null) {
+            throw new DataInvalida();
+        }
+        return d;
+    }
+
+    private LocalDate validarDataInicial(String s) throws DataInicialInvalida {
+        LocalDate d = Formatos.tentarParseData(s);
+        if (d == null) {
+            throw new DataInicialInvalida();
+        }
+        return d;
+    }
+
+    private LocalDate validarDataFinal(String s) throws DataFinalInvalida {
+        LocalDate d = Formatos.tentarParseData(s);
+        if (d == null) {
+            throw new DataFinalInvalida();
+        }
+        return d;
     }
 
     private String proximoId() {
