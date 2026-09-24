@@ -71,7 +71,7 @@ generico em nenhum lugar - cada erro tem sua propria classe em
 `excecoes/`, com a mensagem fixa no construtor.
 
 
-A `Sistema` nao sabe nada sobre a linguagem de scripts do EasyAccept, quem
+A `Sistema` não sabe nada sobre a linguagem de scripts do EasyAccept, quem
 traduz comando -> metodo e a `Facade`.
 
 Cada metodo declara exatamente quais excecoes pode lancar (`throws
@@ -82,25 +82,25 @@ generico em nenhum lugar - cada erro tem sua propria classe em
 ## Algumas decisoes de implementacao
 
 **Persistencia**: no `encerrarSistema` o objeto `Sistema` inteiro e
-serializado (serializacao padrao do Java, nao usei XMLEncoder) pro arquivo
+serializado (serializacao padrao do Java, não usei XMLEncoder) pro arquivo
 `wepayu.db`. Quando a `Facade` e criada de novo, ela tenta carregar esse
-arquivo; se nao existir, comeca vazio. E assim que os testes `usN_1`
+arquivo; se não existir, começa vazio. E assim que os testes `usN_1`
 conseguem ver o que foi feito no `usN` anterior.
 
 **Undo/redo**: implementei como memento. Antes de rodar um comando que
-altera o estado, a `Facade` clona o `Sistema` inteiro e guarda a copia
+altera o estado, a `Facade` clona o `Sistema` inteiro e guarda a cópia
 antiga numa pilha. So troca a referencia atual se o comando terminar sem
 erro - assim um comando que da exception nunca entra na pilha de undo,
-que e uma das exigencias da user story 8.
+que e uma das exigências da user story 8.
 
-**Arredondamento**: os valores calculados (comissao, parte fixa do
-comissionado etc) sao truncados em 2 casas, nao arredondados. Percebi
+**Arredondamento**: os valores calculados (comissão, parte fixa do
+comissionado etc) sao truncados em 2 casas, não arredondados. Percebi
 isso comparando com os valores dos arquivos `ok/*.txt` - por exemplo o
-calculo `salario*24/52` da 692,3076... e o esperado e 692,30, nao 692,31.
+cálculo `salario*24/52` da 692,3076... e o esperado e 692,30, não 692,31.
 
-**Contracheque nao pode ficar negativo**: se o desconto (sindicato +
-taxas de servico pendentes) for maior que o salario bruto do periodo, o
-desconto fica limitado ao bruto (liquido fica 0) e o resto continua
+**Contracheque não pode ficar negativo**: se o desconto (sindicato +
+taxas de serviço pendentes) for maior que o salário bruto do período, o
+desconto fica limitado ao bruto (líquido fica 0) e o resto continua
 pendente pra ser cobrado depois.
 
 **Rodar a folha duas vezes pra mesma data**: o teste us7 faz isso de
@@ -110,14 +110,14 @@ data - se pedirem a mesma data de novo, devolve o que ja tinha calculado
 em vez de recalcular (recalcular do zero ia dar diferente, porque o
 periodo ja teria sido "consumido" na primeira vez).
 
-**Agendas de pagamento** (simplificacao do milestone 1): horista recebe
+**Agendas de pagamento** (simplificação do milestone 1): horista recebe
 toda sexta, comissionado a cada duas sextas a partir de 14/1/2005,
-assalariado no ultimo dia util do mes (sem considerar feriado).
+assalariado no último dia útil do mês (sem considerar feriado).
 
 ## Fora do escopo
 
-O enunciado so define o primeiro milestone (US 1 a 8); os outros dois
-estao como "TBD". Coisas que ficam de fora por isso: pagamento
+O enunciado só define o primeiro milestone (US 1 a 8); os outros dois
+estão como "TBD". Coisas que ficam de fora por isso: pagamento
 proporcional pro empregado recem contratado, agendas de pagamento
 customizadas (US 9/10), outros impostos, 13o salario.
 
