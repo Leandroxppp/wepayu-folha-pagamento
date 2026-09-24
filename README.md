@@ -10,6 +10,8 @@ _1 que testam persistencia), 590 verificacoes no total, sem nenhuma falha.
 
 ## Como rodar
 
+### Linux / Mac
+
 Compilar:
 ```
 javac -d bin -cp lib/easyaccept.jar $(find src -name "*.java")
@@ -20,31 +22,62 @@ Rodar um teste (exemplo us1):
 java -cp bin:lib/easyaccept.jar easyaccept.EasyAccept br.ufal.ic.p2.wepayu.Facade tests/us1.txt
 ```
 
-E assim pra us2, us3... us8. Os arquivos `usN_1.txt` precisam ser rodados
-numa execucao SEPARADA da JVM logo depois do `usN.txt` correspondente (sem
-chamar zerarSistema antes), porque eles testam se os dados persistidos em
-disco (arquivo `wepayu.db`) continuam la depois que o processo termina.
+### Windows (PowerShell)
 
-No Windows/PowerShell trocar `$(find src -name "*.java")` por
-`(Get-ChildItem -Recurse -Filter *.java src | % FullName)` e o `:` do
-classpath por `;`.
+Compilar:
+```
+
+javac -d bin -cp lib\easyaccept.jar (Get-ChildItem -Recurse -Filter *.java src | % FullName)
+```
+
+Rodar um teste (exemplo us1):
+```
+java -cp "bin;lib\easyaccept.jar" easyaccept.EasyAccept br.ufal.ic.p2.wepayu.Facade tests\us1.txt
+```
+Atencao: as aspas em volta de `"bin;lib\easyaccept.jar"` sao obrigatorias no
+PowerShell. Sem elas, o `;` e interpretado como separador de comandos e o
+classpath quebra.
+
+### Rodando todos os testes
+
+E so trocar `us1.txt` por `us2.txt`, `us3.txt`... ate `us8.txt`. Os arquivos
+`usN_1.txt` precisam ser rodados numa execucao SEPARADA da JVM logo depois
+do `usN.txt` correspondente (sem chamar zerarSistema antes), porque eles
+testam se os dados persistidos em disco (arquivo `wepayu.db`, criado na
+pasta onde o comando roda) continuam la depois que o processo termina.
+
+## Estrutura
 
 ## Estrutura
 
 ```
 src/
-  Main.java                    -> roda os testes via EasyAccept (opcional)
-  br/ufal/ic/p2/wepayu/
-    Facade.java                -> interface usada pelos testes
-    Sistema.java                -> regras de negocio (folha, cadastro, etc)
-    excecoes/                   -> uma classe por tipo de erro (EmpregadoNaoExiste,
-                                    SalarioNulo, TipoInvalido etc), todas
-                                    extends Exception com a mensagem fixa
-    models/                     -> Empregado e subtipos, CartaoPonto,
-                                    ResultadoVenda, TaxaServico,
-                                    MembroSindicato, MetodoPagamento
-    util/Formatos.java          -> parsing/formatacao de numero e data
+Main.java -> roda os testes via EasyAccept (opcional)
+br/ufal/ic/p2/wepayu/
+Facade.java -> interface usada pelos testes
+Sistema.java -> regras de negocio (folha, cadastro, etc)
+excecoes/ -> uma classe por tipo de erro (EmpregadoNaoExiste,
+SalarioNulo, TipoInvalido etc), todas
+extends Exception com a mensagem fixa
+models/ -> Empregado e subtipos, CartaoPonto,
+ResultadoVenda, TaxaServico,
+MembroSindicato, MetodoPagamento
+util/Formatos.java -> parsing/formatacao de numero e data
+tests/ -> scripts de teste de aceitacao (EasyAccept)
+ok/ -> relatorios de folha de referencia, usados
+pelos testes (equalFiles) para comparar
+com o que o sistema gerou
+lib/easyaccept.jar -> biblioteca usada pra rodar os testes
 ```
+
+A `Sistema` nao sabe nada sobre a linguagem de scripts do EasyAccept, quem
+traduz comando -> metodo e a `Facade`.
+
+Cada metodo declara exatamente quais excecoes pode lancar (`throws
+NomeNulo, EnderecoNulo, TipoInvalido, ...`), sem usar `Exception`
+generico em nenhum lugar - cada erro tem sua propria classe em
+`excecoes/`, com a mensagem fixa no construtor.
+
 
 A `Sistema` nao sabe nada sobre a linguagem de scripts do EasyAccept, quem
 traduz comando -> metodo e a `Facade`.
@@ -95,3 +128,4 @@ O enunciado so define o primeiro milestone (US 1 a 8); os outros dois
 estao como "TBD". Coisas que ficam de fora por isso: pagamento
 proporcional pro empregado recem contratado, agendas de pagamento
 customizadas (US 9/10), outros impostos, 13o salario.
+
