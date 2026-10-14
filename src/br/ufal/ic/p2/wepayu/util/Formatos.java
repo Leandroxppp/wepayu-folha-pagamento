@@ -2,17 +2,16 @@ package br.ufal.ic.p2.wepayu.util;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 
-/**
- * Conversão de números e datas no padrão usado nos scripts de teste (vírgula
- * decimal, datas no formato d/M/aaaa). Só faz o parsing "cru": quem decide qual
- * exceção lançar em caso de erro é a classe {@link Entrada}.
- */
-public final class Formatos {
+// parsing e formatacao de numeros/datas no padrao usado nos scripts de
+// teste (virgula decimal, data d/M/yyyy). So faz o parsing "cru" - quem
+// decide qual excecao lancar em caso de erro e a Sistema.
+public class Formatos {
 
     private static final DateTimeFormatter FORMATO_DATA =
             DateTimeFormatter.ofPattern("d/M/uuuu").withResolverStyle(ResolverStyle.STRICT);
@@ -20,35 +19,41 @@ public final class Formatos {
     private Formatos() {
     }
 
-    /** Converte "23,32" em 23.32; devolve null se o texto não for um número. */
-    public static BigDecimal tentarParseNumero(String texto) {
+    // tenta converter "23,32" -> 23.32; devolve null se nao for um numero valido
+    public static BigDecimal tentarParseNumero(String valor) {
+        if (valor == null) {
+            return null;
+        }
+        String texto = valor.trim().replace(',', '.');
         try {
-            return new BigDecimal(texto.trim().replace(',', '.'));
+            return new BigDecimal(texto);
         } catch (NumberFormatException e) {
             return null;
         }
     }
 
-    /** Converte "3/1/2005" em data; devolve null se a data for inválida. */
-    public static LocalDate tentarParseData(String texto) {
+    // tenta converter "3/1/2005" -> LocalDate; devolve null se a data for invalida
+    public static LocalDate tentarParseData(String data) {
+        if (data == null || data.trim().isEmpty()) {
+            return null;
+        }
         try {
-            return LocalDate.parse(texto.trim(), FORMATO_DATA);
+            return LocalDate.parse(data.trim(), FORMATO_DATA);
         } catch (DateTimeParseException e) {
             return null;
         }
     }
 
-    /**
-     * Valor monetário com 2 casas e vírgula. Trunca em vez de arredondar, que é
-     * como os arquivos de referência calculam (ex.: salário * 24 / 52).
-     */
+    // valor monetario com 2 casas e virgula - trunca em vez de arredondar,
+    // e assim que os arquivos ok/*.txt calculam (ex: salario*24/52)
     public static String formatarMoeda(BigDecimal valor) {
-        return valor.setScale(2, RoundingMode.FLOOR).toPlainString().replace('.', ',');
+        BigDecimal truncado = valor.setScale(2, RoundingMode.FLOOR);
+        return truncado.toPlainString().replace('.', ',');
     }
 
-    /** Horas sem casas decimais quando não precisa (8 em vez de 8,0). */
+    // formata horas sem casas decimais quando nao precisa (8 em vez de 8,0)
     public static String formatarHoras(BigDecimal valor) {
-        if (valor.signum() == 0) {
+        if (valor.compareTo(BigDecimal.ZERO) == 0) {
             return "0";
         }
         BigDecimal semZeros = valor.stripTrailingZeros();
@@ -56,5 +61,14 @@ public final class Formatos {
             semZeros = semZeros.setScale(0);
         }
         return semZeros.toPlainString().replace('.', ',');
+    }
+
+    // ultimo dia util (seg a sex) do mes, sem considerar feriados
+    public static LocalDate ultimoDiaUtilDoMes(int ano, int mes) {
+        LocalDate ultimoDia = LocalDate.of(ano, mes, 1).plusMonths(1).minusDays(1);
+        while (ultimoDia.getDayOfWeek() == DayOfWeek.SATURDAY || ultimoDia.getDayOfWeek() == DayOfWeek.SUNDAY) {
+            ultimoDia = ultimoDia.minusDays(1);
+        }
+        return ultimoDia;
     }
 }
