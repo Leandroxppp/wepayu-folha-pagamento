@@ -1,287 +1,184 @@
 package br.ufal.ic.p2.wepayu;
 
 import br.ufal.ic.p2.wepayu.excecoes.*;
+import br.ufal.ic.p2.wepayu.historico.GerenciadorHistorico;
+import br.ufal.ic.p2.wepayu.persistencia.ArquivoPersistencia;
+import br.ufal.ic.p2.wepayu.repositorio.BaseDados;
+import br.ufal.ic.p2.wepayu.repositorio.ContextoSistema;
+import br.ufal.ic.p2.wepayu.servicos.*;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.util.ArrayDeque;
-import java.util.Deque;
-
-// Classe usada pelos testes de aceitacao (EasyAccept) - cada comando do
-// script vira uma chamada de metodo aqui. Persistencia em disco e o
-// undo/redo ficam nessa classe; a logica de negocio em si esta na Sistema.
+/**
+ * Fachada usada pelo EasyAccept. Ela apenas traduz os comandos dos scripts para
+ * os serviços da aplicação; regras de negócio, histórico e persistência ficam
+ * em componentes próprios.
+ */
 public class Facade {
 
     private static final String ARQUIVO_PERSISTENCIA = "wepayu.db";
 
-    private Sistema sistema;
-    private final Deque<Sistema> pilhaUndo = new ArrayDeque<>();
-    private final Deque<Sistema> pilhaRedo = new ArrayDeque<>();
+    private final ArquivoPersistencia persistencia;
+    private final ContextoSistema contexto;
+    private final GerenciadorHistorico historico;
+    private final ServicoEmpregados empregados;
+    private final ServicoAtributos atributos;
+    private final ServicoAlteracoes alteracoes;
+    private final ServicoLancamentos lancamentos;
+    private final ServicoConsultas consultas;
+    private final ServicoFolha folha;
+    private final ServicoAgendas agendas;
+
+    private boolean encerrado;
 
     public Facade() {
-        Sistema carregado = carregarDoDisco();
-        this.sistema = (carregado != null) ? carregado : new Sistema();
+        persistencia = new ArquivoPersistencia(ARQUIVO_PERSISTENCIA);
+        contexto = new ContextoSistema(persistencia.carregarOuCriar());
+        historico = new GerenciadorHistorico(contexto);
+        empregados = new ServicoEmpregados(contexto);
+        atributos = new ServicoAtributos(contexto);
+        alteracoes = new ServicoAlteracoes(contexto);
+        lancamentos = new ServicoLancamentos(contexto);
+        consultas = new ServicoConsultas(contexto);
+        folha = new ServicoFolha(contexto);
+        agendas = new ServicoAgendas(contexto);
     }
 
-    // persistencia em disco e o memento usado pra undo/redo
-
-    private static Sistema carregarDoDisco() {
-        File arquivo = new File(ARQUIVO_PERSISTENCIA);
-        if (!arquivo.exists()) {
-            return null;
-        }
-        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(arquivo))) {
-            return (Sistema) ois.readObject();
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private void salvarNoDisco() {
-        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(ARQUIVO_PERSISTENCIA))) {
-            oos.writeObject(sistema);
-        } catch (Exception e) {
-            // Em um sistema real trataríamos/logaríamos; aqui simplesmente ignoramos,
-            // já que não há como comunicar isso de volta pelo script de testes.
-        }
-    }
-
-    private static Sistema clonar(Sistema original) {
-        try {
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            try (ObjectOutputStream oos = new ObjectOutputStream(bos)) {
-                oos.writeObject(original);
-            }
-            try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bos.toByteArray()))) {
-                return (Sistema) ois.readObject();
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Falha interna ao clonar o estado do sistema.", e);
-        }
-    }
-
-    private void checarEncerrado() throws SistemaEncerrado {
-        if (sistema.isEncerrado()) {
-            throw new SistemaEncerrado();
-        }
+    private void checarEncerrado() throws SistemaEncerradoException {
+        if (encerrado) throw new SistemaEncerradoException();
     }
 
     // comandos gerais
 
-    public void zerarSistema() throws SistemaEncerrado {
+    public void zerarSistema() throws WePayUException {
         checarEncerrado();
-        pilhaUndo.push(sistema);
-        pilhaRedo.clear();
-        sistema = new Sistema();
+        historico.executar(() -> contexto.setBase(new BaseDados()));
     }
 
-    public void encerrarSistema() throws SistemaEncerrado {
+    public void encerrarSistema() throws WePayUException {
         checarEncerrado();
-        salvarNoDisco();
-        sistema.setEncerrado(true);
+        persistencia.salvar(contexto.getBase());
+        encerrado = true;
     }
 
-    public void undo() throws SistemaEncerrado, SemComandoDesfazer {
+    public void undo() throws WePayUException {
         checarEncerrado();
-        if (pilhaUndo.isEmpty()) {
-            throw new SemComandoDesfazer();
-        }
-        pilhaRedo.push(sistema);
-        sistema = pilhaUndo.pop();
+        historico.desfazer();
     }
 
-    public void redo() throws SistemaEncerrado, SemComandoRefazer {
+    public void redo() throws WePayUException {
         checarEncerrado();
-        if (pilhaRedo.isEmpty()) {
-            throw new SemComandoRefazer();
-        }
-        pilhaUndo.push(sistema);
-        sistema = pilhaRedo.pop();
+        historico.refazer();
     }
 
-    public String getNumeroDeEmpregados() throws SistemaEncerrado {
+    public String getNumeroDeEmpregados() throws WePayUException {
         checarEncerrado();
-        return String.valueOf(sistema.getNumeroDeEmpregados());
+        return String.valueOf(empregados.getNumeroDeEmpregados());
     }
 
-    // empregados: criação, remoção, consulta e alteração
+    // empregados
 
-    public String criarEmpregado(String nome, String endereco, String tipo, String salario)
-            throws SistemaEncerrado, NomeNulo, EnderecoNulo, TipoInvalido, TipoNaoAplicavel, SalarioNulo,
-            SalarioNaoNumerico, SalarioNegativo {
+    public String criarEmpregado(String nome, String endereco, String tipo, String salario) throws WePayUException {
         checarEncerrado();
-        Sistema copia = clonar(sistema);
-        String id = copia.criarEmpregado(nome, endereco, tipo, salario);
-        pilhaUndo.push(sistema);
-        pilhaRedo.clear();
-        sistema = copia;
-        return id;
+        return historico.executar(() -> empregados.criarEmpregado(nome, endereco, tipo, salario));
     }
 
     public String criarEmpregado(String nome, String endereco, String tipo, String salario, String comissao)
-            throws SistemaEncerrado, NomeNulo, EnderecoNulo, TipoInvalido, TipoNaoAplicavel, SalarioNulo,
-            SalarioNaoNumerico, SalarioNegativo, ComissaoNula, ComissaoNaoNumerica, ComissaoNegativa {
+            throws WePayUException {
         checarEncerrado();
-        Sistema copia = clonar(sistema);
-        String id = copia.criarEmpregado(nome, endereco, tipo, salario, comissao);
-        pilhaUndo.push(sistema);
-        pilhaRedo.clear();
-        sistema = copia;
-        return id;
+        return historico.executar(() -> empregados.criarEmpregado(nome, endereco, tipo, salario, comissao));
     }
 
-    public void removerEmpregado(String emp) throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste {
+    public void removerEmpregado(String emp) throws WePayUException {
         checarEncerrado();
-        Sistema copia = clonar(sistema);
-        copia.removerEmpregado(emp);
-        pilhaUndo.push(sistema);
-        pilhaRedo.clear();
-        sistema = copia;
+        historico.executar(() -> empregados.removerEmpregado(emp));
     }
 
-    public String getEmpregadoPorNome(String nome, int indice) throws SistemaEncerrado, EmpregadoNaoEncontradoPorNome {
+    public String getEmpregadoPorNome(String nome, int indice) throws WePayUException {
         checarEncerrado();
-        return sistema.getEmpregadoPorNome(nome, indice);
+        return empregados.getEmpregadoPorNome(nome, indice);
     }
 
-    public String getAtributoEmpregado(String emp, String atributo)
-            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, AtributoNaoExiste,
-            EmpregadoNaoComissionado, EmpregadoNaoSindicalizado, EmpregadoNaoRecebeEmBanco {
+    public String getAtributoEmpregado(String emp, String atributo) throws WePayUException {
         checarEncerrado();
-        return sistema.getAtributoEmpregado(emp, atributo);
+        return atributos.getAtributoEmpregado(emp, atributo);
     }
 
-    public void alteraEmpregado(String emp, String atributo, String valor)
-            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, AtributoNaoExiste, NomeNulo,
-            EnderecoNulo, TipoInvalido, SalarioNulo, SalarioNaoNumerico, SalarioNegativo, EmpregadoNaoComissionado,
-            ComissaoNula, ComissaoNaoNumerica, ComissaoNegativa, ValorNaoBooleano, IdentificacaoSindicatoNula,
-            BancoNulo, MetodoPagamentoInvalido {
+    public void alteraEmpregado(String emp, String atributo, String valor) throws WePayUException {
         checarEncerrado();
-        Sistema copia = clonar(sistema);
-        copia.alteraEmpregado(emp, atributo, valor);
-        pilhaUndo.push(sistema);
-        pilhaRedo.clear();
-        sistema = copia;
+        historico.executar(() -> alteracoes.alterar(emp, atributo, valor));
     }
 
-    public void alteraEmpregado(String emp, String atributo, String valor, String extra)
-            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, AtributoNaoExiste, TipoInvalido,
-            SalarioNulo, SalarioNaoNumerico, SalarioNegativo, ComissaoNula, ComissaoNaoNumerica, ComissaoNegativa {
+    public void alteraEmpregado(String emp, String atributo, String valor, String extra) throws WePayUException {
         checarEncerrado();
-        Sistema copia = clonar(sistema);
-        copia.alteraEmpregado(emp, atributo, valor, extra);
-        pilhaUndo.push(sistema);
-        pilhaRedo.clear();
-        sistema = copia;
+        historico.executar(() -> alteracoes.alterarTipo(emp, atributo, valor, extra));
     }
 
     public void alteraEmpregado(String emp, String atributo, String valor, String idSindicato, String taxaSindical)
-            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, AtributoNaoExiste,
-            ValorNaoBooleano, IdentificacaoSindicatoNula, TaxaSindicalNula, TaxaSindicalNaoNumerica,
-            TaxaSindicalNegativa, IdSindicatoDuplicado {
+            throws WePayUException {
         checarEncerrado();
-        Sistema copia = clonar(sistema);
-        copia.alteraEmpregado(emp, atributo, valor, idSindicato, taxaSindical);
-        pilhaUndo.push(sistema);
-        pilhaRedo.clear();
-        sistema = copia;
+        historico.executar(() -> alteracoes.alterarSindicalizacao(emp, atributo, valor, idSindicato, taxaSindical));
     }
 
     public void alteraEmpregado(String emp, String atributo, String valor1, String banco, String agencia,
-                                 String contaCorrente)
-            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, AtributoNaoExiste,
-            MetodoPagamentoInvalido, BancoNulo, AgenciaNula, ContaCorrenteNula {
+                                String contaCorrente) throws WePayUException {
         checarEncerrado();
-        Sistema copia = clonar(sistema);
-        copia.alteraEmpregado(emp, atributo, valor1, banco, agencia, contaCorrente);
-        pilhaUndo.push(sistema);
-        pilhaRedo.clear();
-        sistema = copia;
+        historico.executar(() -> alteracoes.alterarParaBanco(emp, atributo, valor1, banco, agencia, contaCorrente));
     }
 
     // lançamentos
 
-    public void lancaCartao(String emp, String data, String horas)
-            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoHorista,
-            DataInvalida, HorasNula, HorasNaoNumerica, HorasNaoPositivas {
+    public void lancaCartao(String emp, String data, String horas) throws WePayUException {
         checarEncerrado();
-        Sistema copia = clonar(sistema);
-        copia.lancaCartao(emp, data, horas);
-        pilhaUndo.push(sistema);
-        pilhaRedo.clear();
-        sistema = copia;
+        historico.executar(() -> lancamentos.lancaCartao(emp, data, horas));
     }
 
-    public void lancaVenda(String emp, String data, String valor)
-            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoComissionado,
-            DataInvalida, ValorNulo, ValorNaoNumerico, ValorNaoPositivo {
+    public void lancaVenda(String emp, String data, String valor) throws WePayUException {
         checarEncerrado();
-        Sistema copia = clonar(sistema);
-        copia.lancaVenda(emp, data, valor);
-        pilhaUndo.push(sistema);
-        pilhaRedo.clear();
-        sistema = copia;
+        historico.executar(() -> lancamentos.lancaVenda(emp, data, valor));
     }
 
-    public void lancaTaxaServico(String membro, String data, String valor)
-            throws SistemaEncerrado, IdentificacaoMembroNula, MembroNaoExiste, DataInvalida, ValorNulo,
-            ValorNaoNumerico, ValorNaoPositivo {
+    public void lancaTaxaServico(String membro, String data, String valor) throws WePayUException {
         checarEncerrado();
-        Sistema copia = clonar(sistema);
-        copia.lancaTaxaServico(membro, data, valor);
-        pilhaUndo.push(sistema);
-        pilhaRedo.clear();
-        sistema = copia;
+        historico.executar(() -> lancamentos.lancaTaxaServico(membro, data, valor));
     }
 
-    // consultas de período
+    // consultas
 
-    public String getHorasNormaisTrabalhadas(String emp, String dataInicial, String dataFinal)
-            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoHorista,
-            DataInicialInvalida, DataFinalInvalida, DataInicialPosteriorFinal {
+    public String getHorasNormaisTrabalhadas(String emp, String dataInicial, String dataFinal) throws WePayUException {
         checarEncerrado();
-        return sistema.getHorasNormaisTrabalhadas(emp, dataInicial, dataFinal);
+        return consultas.getHorasNormaisTrabalhadas(emp, dataInicial, dataFinal);
     }
 
-    public String getHorasExtrasTrabalhadas(String emp, String dataInicial, String dataFinal)
-            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoHorista,
-            DataInicialInvalida, DataFinalInvalida, DataInicialPosteriorFinal {
+    public String getHorasExtrasTrabalhadas(String emp, String dataInicial, String dataFinal) throws WePayUException {
         checarEncerrado();
-        return sistema.getHorasExtrasTrabalhadas(emp, dataInicial, dataFinal);
+        return consultas.getHorasExtrasTrabalhadas(emp, dataInicial, dataFinal);
     }
 
-    public String getVendasRealizadas(String emp, String dataInicial, String dataFinal)
-            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoComissionado,
-            DataInicialInvalida, DataFinalInvalida, DataInicialPosteriorFinal {
+    public String getVendasRealizadas(String emp, String dataInicial, String dataFinal) throws WePayUException {
         checarEncerrado();
-        return sistema.getVendasRealizadas(emp, dataInicial, dataFinal);
+        return consultas.getVendasRealizadas(emp, dataInicial, dataFinal);
     }
 
-    public String getTaxasServico(String emp, String dataInicial, String dataFinal)
-            throws SistemaEncerrado, IdentificacaoEmpregadoNula, EmpregadoNaoExiste, EmpregadoNaoSindicalizado,
-            DataInicialInvalida, DataFinalInvalida, DataInicialPosteriorFinal {
+    public String getTaxasServico(String emp, String dataInicial, String dataFinal) throws WePayUException {
         checarEncerrado();
-        return sistema.getTaxasServico(emp, dataInicial, dataFinal);
+        return consultas.getTaxasServico(emp, dataInicial, dataFinal);
     }
 
-    // folha de pagamento
+    // folha
 
-    public String totalFolha(String data) throws SistemaEncerrado, DataInvalida {
+    public String totalFolha(String data) throws WePayUException {
         checarEncerrado();
-        return sistema.totalFolha(data);
+        return folha.totalFolha(data);
     }
 
-    public void rodaFolha(String data, String saida) throws SistemaEncerrado, DataInvalida, ErroArquivoSaida {
+    public void rodaFolha(String data, String saida) throws WePayUException {
         checarEncerrado();
-        Sistema copia = clonar(sistema);
-        copia.rodaFolha(data, saida);
-        pilhaUndo.push(sistema);
-        pilhaRedo.clear();
-        sistema = copia;
+        historico.executar(() -> folha.rodaFolha(data, saida));
+    }
+
+    // US 10
+
+    public void criarAgendaDePagamentos(String descricao) throws WePayUException {
+        checarEncerrado();
+        historico.executar(() -> agendas.criarAgendaDePagamentos(descricao));
     }
 }

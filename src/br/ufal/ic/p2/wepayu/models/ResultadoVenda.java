@@ -4,22 +4,16 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-public class ResultadoVenda implements Serializable {
+/** Registro imutável de uma venda realizada. */
+public final class ResultadoVenda implements Serializable, Lancamento {
     private static final long serialVersionUID = 1L;
-
-    private LocalDate data;
-    private BigDecimal valor;
+    private final LocalDate data;
+    private final BigDecimal valor;
 
     public ResultadoVenda(LocalDate data, BigDecimal valor) {
         this.data = data;
         this.valor = valor;
     }
-
-    public LocalDate getData() {
-        return data;
-    }
-
-    public BigDecimal getValor() {
-        return valor;
-    }
+    @Override public LocalDate getData() { return data; }
+    public BigDecimal getValor() { return valor; }
 }

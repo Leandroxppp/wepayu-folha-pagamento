@@ -1,123 +1,77 @@
-# WePayU - Sistema de Folha de Pagamento
+# WePayU — Sistema de Folha de Pagamento
 
-Trabalho da disciplina de Projeto de Sistemas de Informacao (UFAL). Implementa
-as User Stories 1 a 8 (primeiro milestone) do projeto WePayU: cadastro de
-empregados, cartao de ponto, vendas, taxas de sindicato e a folha de
-pagamento em si, com undo/redo e persistencia entre execucoes.
+Projeto da disciplina de Projeto de Sistemas de Informação (UFAL). Esta versão implementa as **User Stories 1 a 10**, incluindo persistência, undo/redo, escolha de agenda de pagamento (US9) e criação de agendas customizadas (US10).
 
-Passa nos 14 arquivos de teste de aceitacao (us1 a us8, com as variantes
-_1 que testam persistencia), 590 verificacoes no total, sem nenhuma falha.
+## Estado dos testes
+
+A suíte incluída no repositório passa integralmente:
+
+- US1–US8 e persistências: **590 verificações**;
+- US9 + US9_1: **104 verificações**;
+- US10 + US10_1: **92 verificações**;
+- total: **786 verificações, 0 falhas**.
+
+> O arquivo `tests/us9.txt` recebido tinha um erro de digitação em uma linha (`1292,30totalFolha`). Foi corrigido apenas o espaço ausente (`1292,30 totalFolha`), sem alterar o caso de teste nem o valor esperado.
 
 ## Como rodar
 
-### Linux / Mac
+### Linux / macOS
 
-Compilar:
-```
-javac -d bin -cp lib/easyaccept.jar $(find src -name "*.java")
-```
-
-Rodar um teste (exemplo us1):
-```
-java -cp bin:lib/easyaccept.jar easyaccept.EasyAccept br.ufal.ic.p2.wepayu.Facade tests/us1.txt
+```bash
+./rodar-testes.sh
 ```
 
-### Windows (PowerShell)
+Ou manualmente:
 
-Compilar:
+```bash
+rm -rf bin && mkdir bin
+javac -encoding UTF-8 -d bin -cp lib/easyaccept.jar $(find src -name "*.java")
+java -cp bin:lib/easyaccept.jar easyaccept.EasyAccept br.ufal.ic.p2.wepayu.Facade tests/us10.txt
 ```
 
-javac -d bin -cp lib\easyaccept.jar (Get-ChildItem -Recurse -Filter *.java src | % FullName)
+### Windows
+
+Use `rodar-testes.bat` ou compile pelo PowerShell:
+
+```powershell
+Remove-Item -Recurse -Force bin -ErrorAction SilentlyContinue
+New-Item -ItemType Directory bin | Out-Null
+javac -encoding UTF-8 -d bin -cp lib\easyaccept.jar (Get-ChildItem -Recurse -Filter *.java src | % FullName)
+java -cp "bin;lib\easyaccept.jar" easyaccept.EasyAccept br.ufal.ic.p2.wepayu.Facade tests\us10.txt
 ```
 
-Rodar um teste (exemplo us1):
-```
-java -cp "bin;lib\easyaccept.jar" easyaccept.EasyAccept br.ufal.ic.p2.wepayu.Facade tests\us1.txt
-```
-Atencao: as aspas em volta de `"bin;lib\easyaccept.jar"` sao obrigatorias no
-PowerShell. Sem elas, o `;` é interpretado como separador de comandos e o
-classpath quebra.
+Os arquivos `usN_1.txt` devem rodar **em outra JVM**, imediatamente depois do `usN.txt`, porque verificam a persistência em `wepayu.db`. Os scripts `rodar-testes.sh` e `rodar-testes.bat` já fazem isso.
 
-### Rodando todos os testes
+## Arquitetura
 
-E so trocar `us1.txt` por `us2.txt`, `us3.txt`... ate `us8.txt`. Os arquivos
-`usN_1.txt` precisam ser rodados numa execucao SEPARADA da JVM logo depois
-do `usN.txt` correspondente (sem chamar zerarSistema antes), porque eles
-testam se os dados persistidos em disco (arquivo `wepayu.db`, criado na
-pasta onde o comando roda) continuam la depois que o processo termina.
-
-## Estrutura
-
-```
-src/
-  Main.java                -> roda os testes via EasyAccept (opcional)
-  br/ufal/ic/p2/wepayu/
-    Facade.java             -> interface usada pelos testes
-    Sistema.java            -> regras de negocio (folha, cadastro, etc)
-    excecoes/               -> uma classe por tipo de erro, cada uma extends Exception com a mensagem fixa
-    models/                 -> Empregado e subtipos, CartaoPonto, ResultadoVenda, TaxaServico, MembroSindicato, MetodoPagamento
-    util/Formatos.java      -> parsing e formatacao de numero e data
-tests/                      -> scripts de teste de aceitacao (EasyAccept)
-ok/                         -> relatorios de folha de referencia, usados pelos testes (equalFiles) para comparar com o que o sistema gerou
-lib/easyaccept.jar          -> biblioteca usada pra rodar os testes
+```text
+src/br/ufal/ic/p2/wepayu/
+├── Facade.java          # interface fina usada pelo EasyAccept
+├── agenda/              # regras e fábrica de agendas de pagamento
+├── excecoes/            # hierarquia WePayUException + uma classe por erro
+├── historico/           # undo/redo (Memento)
+├── models/              # entidades e regras polimórficas dos empregados
+├── persistencia/        # serialização e arquivo wepayu.db
+├── relatorio/           # geração do relatório da folha
+├── repositorio/         # armazenamento de empregados e agendas
+├── servicos/            # casos de uso: cadastro, alteração, folha, consultas...
+└── util/                # parsing e formatação
 ```
 
-A `Sistema` nao sabe nada sobre a linguagem de scripts do EasyAccept, quem
-traduz comando -> metodo e a `Facade`.
+### Decisões principais
 
-Cada metodo declara exatamente quais excecoes pode lancar (`throws
-NomeNulo, EnderecoNulo, TipoInvalido, ...`), sem usar `Exception`
-generico em nenhum lugar - cada erro tem sua propria classe em
-`excecoes/`, com a mensagem fixa no construtor.
+**Responsabilidades separadas.** A antiga classe monolítica de sistema foi removida. Cadastro, lançamentos, consultas, folha, relatório, histórico e persistência ficam em componentes diferentes. A `Facade` somente verifica se o sistema está aberto e encaminha cada comando ao serviço apropriado.
 
+**Polimorfismo no cálculo.** Cada subtipo de `Empregado` calcula seu próprio pagamento e produz seu próprio `Contracheque`; a folha não usa cadeias de `instanceof` para decidir como pagar horistas, assalariados e comissionados.
 
-A `Sistema` não sabe nada sobre a linguagem de scripts do EasyAccept, quem
-traduz comando -> metodo e a `Facade`.
+**Encapsulamento.** Os atributos do empregado são privados. Cartões de ponto e vendas permanecem internos ao modelo e são manipulados por métodos de domínio. As taxas de serviço expostas pelo sindicato são somente leitura.
 
-Cada metodo declara exatamente quais excecoes pode lancar (`throws
-NomeNulo, EnderecoNulo, TipoInvalido, ...`), sem usar `Exception`
-generico em nenhum lugar - cada erro tem sua propria classe em
-`excecoes/`, com a mensagem fixa no construtor.
+**Troca de tipo sem perda de histórico.** Cartões de ponto e vendas são preservados quando um empregado muda de tipo e volta ao tipo anterior.
 
-## Algumas decisoes de implementacao
+**Undo/redo.** O `GerenciadorHistorico` guarda snapshots serializados da base antes de cada comando mutável. Se um comando falha, o estado anterior é restaurado e a operação não entra na pilha de undo.
 
-**Persistencia**: no `encerrarSistema` o objeto `Sistema` inteiro e
-serializado (serializacao padrao do Java, não usei XMLEncoder) pro arquivo
-`wepayu.db`. Quando a `Facade` e criada de novo, ela tenta carregar esse
-arquivo; se não existir, começa vazio. E assim que os testes `usN_1`
-conseguem ver o que foi feito no `usN` anterior.
+**Persistência.** A base completa (empregados + agendas customizadas) é serializada em `wepayu.db`. Arquivo inexistente inicia uma base nova; arquivo existente e corrompido gera erro em vez de ser silenciosamente substituído por uma base vazia.
 
-**Undo/redo**: implementei como memento. Antes de rodar um comando que
-altera o estado, a `Facade` clona o `Sistema` inteiro e guarda a cópia
-antiga numa pilha. So troca a referencia atual se o comando terminar sem
-erro - assim um comando que da exception nunca entra na pilha de undo,
-que e uma das exigências da user story 8.
+**Agendas (US9/US10).** Existem por padrão `semanal 5`, `mensal $` e `semanal 2 5`. Novas agendas aceitam `semanal D`, `semanal N D`, `mensal D` e `mensal $`, com as faixas exigidas pelos testes. O período de cálculo vem da própria agenda, o que permite consultar `totalFolha` em datas independentes sem depender de uma chamada anterior de `rodaFolha`.
 
-**Arredondamento**: os valores calculados (comissão, parte fixa do
-comissionado etc) sao truncados em 2 casas, não arredondados. Percebi
-isso comparando com os valores dos arquivos `ok/*.txt` - por exemplo o
-cálculo `salario*24/52` da 692,3076... e o esperado e 692,30, não 692,31.
-
-**Contracheque não pode ficar negativo**: se o desconto (sindicato +
-taxas de serviço pendentes) for maior que o salário bruto do período, o
-desconto fica limitado ao bruto (líquido fica 0) e o resto continua
-pendente pra ser cobrado depois.
-
-**Rodar a folha duas vezes pra mesma data**: o teste us7 faz isso de
-proposito e espera o mesmo resultado nas duas vezes. Pra isso guardo em
-cada empregado qual foi o ultimo resultado de folha calculado e pra qual
-data - se pedirem a mesma data de novo, devolve o que ja tinha calculado
-em vez de recalcular (recalcular do zero ia dar diferente, porque o
-periodo ja teria sido "consumido" na primeira vez).
-
-**Agendas de pagamento** (simplificação do milestone 1): horista recebe
-toda sexta, comissionado a cada duas sextas a partir de 14/1/2005,
-assalariado no último dia útil do mês (sem considerar feriado).
-
-## Fora do escopo
-
-O enunciado só define o primeiro milestone (US 1 a 8); os outros dois
-estão como "TBD". Coisas que ficam de fora por isso: pagamento
-proporcional pro empregado recem contratado, agendas de pagamento
-customizadas (US 9/10), outros impostos, 13o salario.
-
+**Valores monetários.** O sistema usa `BigDecimal` e trunca para duas casas onde os testes de aceitação exigem esse comportamento.

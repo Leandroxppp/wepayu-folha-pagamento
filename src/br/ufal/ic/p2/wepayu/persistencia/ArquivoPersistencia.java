@@ -18,8 +18,8 @@ public class ArquivoPersistencia {
     }
 
     /**
-     * Lê a base do arquivo. Se ele não existe, começa uma base vazia; se existe mas não pode ser
-     * lido (corrompido ou de outra versão do programa), avisa no erro padrão e começa vazia.
+     * Lê a base do arquivo. Arquivo inexistente significa primeira execução; arquivo existente
+     * mas inválido é uma falha real e não pode ser silenciosamente substituído por uma base vazia.
      */
     public BaseDados carregarOuCriar() {
         if (!Files.exists(arquivo)) {
@@ -28,8 +28,7 @@ public class ArquivoPersistencia {
         try {
             return Serializacao.desserializar(Files.readAllBytes(arquivo), BaseDados.class);
         } catch (IOException | ClassNotFoundException | ClassCastException e) {
-            System.err.println("Aviso: nao foi possivel ler " + arquivo + " (" + e + "); iniciando sem dados.");
-            return new BaseDados();
+            throw new IllegalStateException("Nao foi possivel carregar os dados persistidos de " + arquivo, e);
         }
     }
 

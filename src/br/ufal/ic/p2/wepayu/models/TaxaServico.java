@@ -4,31 +4,18 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-public class TaxaServico implements Serializable {
+public final class TaxaServico implements Serializable, Lancamento {
     private static final long serialVersionUID = 1L;
-
-    private LocalDate data;
-    private BigDecimal valor;
-    private boolean paga = false;
+    private final LocalDate data;
+    private final BigDecimal valor;
+    private boolean paga;
 
     public TaxaServico(LocalDate data, BigDecimal valor) {
         this.data = data;
         this.valor = valor;
     }
-
-    public LocalDate getData() {
-        return data;
-    }
-
-    public BigDecimal getValor() {
-        return valor;
-    }
-
-    public boolean isPaga() {
-        return paga;
-    }
-
-    public void setPaga(boolean paga) {
-        this.paga = paga;
-    }
+    @Override public LocalDate getData() { return data; }
+    public BigDecimal getValor() { return valor; }
+    public boolean isPaga() { return paga; }
+    public void setPaga(boolean paga) { this.paga = paga; }
 }
