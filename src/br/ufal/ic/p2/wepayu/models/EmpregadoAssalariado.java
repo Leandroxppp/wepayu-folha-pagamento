@@ -5,6 +5,7 @@ import br.ufal.ic.p2.wepayu.agenda.AgendasPadrao;
 import br.ufal.ic.p2.wepayu.excecoes.EnderecoNuloException;
 import br.ufal.ic.p2.wepayu.excecoes.NomeNuloException;
 import br.ufal.ic.p2.wepayu.excecoes.SalarioNegativoException;
+import br.ufal.ic.p2.wepayu.excecoes.SalarioNuloException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -14,23 +15,23 @@ public class EmpregadoAssalariado extends Empregado {
     private BigDecimal salarioMensal;
 
     public EmpregadoAssalariado(String id, String nome, String endereco, BigDecimal salarioMensal)
-            throws NomeNuloException, EnderecoNuloException, SalarioNegativoException {
+            throws NomeNuloException, EnderecoNuloException, SalarioNuloException, SalarioNegativoException {
         this(id, nome, endereco, salarioMensal, AgendasPadrao.MENSAL_ULTIMO_DIA_UTIL);
     }
 
     protected EmpregadoAssalariado(String id, String nome, String endereco, BigDecimal salarioMensal,
                                    AgendaPagamento agenda)
-            throws NomeNuloException, EnderecoNuloException, SalarioNegativoException {
+            throws NomeNuloException, EnderecoNuloException, SalarioNuloException, SalarioNegativoException {
         super(id, nome, endereco, agenda);
         setSalarioBase(salarioMensal);
     }
 
-    public EmpregadoAssalariado(Empregado origem, BigDecimal salarioMensal) throws SalarioNegativoException {
+    public EmpregadoAssalariado(Empregado origem, BigDecimal salarioMensal) throws SalarioNuloException, SalarioNegativoException {
         this(origem, salarioMensal, AgendasPadrao.MENSAL_ULTIMO_DIA_UTIL);
     }
 
     protected EmpregadoAssalariado(Empregado origem, BigDecimal salarioMensal, AgendaPagamento agenda)
-            throws SalarioNegativoException {
+            throws SalarioNuloException, SalarioNegativoException {
         super(origem, agenda);
         setSalarioBase(salarioMensal);
     }
@@ -39,7 +40,8 @@ public class EmpregadoAssalariado extends Empregado {
     @Override public BigDecimal getSalarioBase() { return salarioMensal; }
 
     @Override
-    public void setSalarioBase(BigDecimal valor) throws SalarioNegativoException {
+    public void setSalarioBase(BigDecimal valor) throws SalarioNuloException, SalarioNegativoException {
+        if (valor == null) throw new SalarioNuloException();
         if (valor.compareTo(BigDecimal.ZERO) < 0) throw new SalarioNegativoException();
         salarioMensal = valor;
         limparCacheFolha();

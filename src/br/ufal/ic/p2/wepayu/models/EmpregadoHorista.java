@@ -15,12 +15,12 @@ public class EmpregadoHorista extends Empregado {
     private BigDecimal salarioPorHora;
 
     public EmpregadoHorista(String id, String nome, String endereco, BigDecimal salarioPorHora)
-            throws NomeNuloException, EnderecoNuloException, SalarioNegativoException {
+            throws NomeNuloException, EnderecoNuloException, SalarioNuloException, SalarioNegativoException {
         super(id, nome, endereco, AgendasPadrao.SEMANAL_SEXTA);
         setSalarioBase(salarioPorHora);
     }
 
-    public EmpregadoHorista(Empregado origem, BigDecimal salarioPorHora) throws SalarioNegativoException {
+    public EmpregadoHorista(Empregado origem, BigDecimal salarioPorHora) throws SalarioNuloException, SalarioNegativoException {
         super(origem, AgendasPadrao.SEMANAL_SEXTA);
         setSalarioBase(salarioPorHora);
     }
@@ -29,7 +29,8 @@ public class EmpregadoHorista extends Empregado {
     @Override public BigDecimal getSalarioBase() { return salarioPorHora; }
 
     @Override
-    public void setSalarioBase(BigDecimal valor) throws SalarioNegativoException {
+    public void setSalarioBase(BigDecimal valor) throws SalarioNuloException, SalarioNegativoException {
+        if (valor == null) throw new SalarioNuloException();
         if (valor.compareTo(BigDecimal.ZERO) < 0) throw new SalarioNegativoException();
         salarioPorHora = valor;
         limparCacheFolha();

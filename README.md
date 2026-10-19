@@ -40,6 +40,8 @@ javac -encoding UTF-8 -d bin -cp lib\easyaccept.jar (Get-ChildItem -Recurse -Fil
 java -cp "bin;lib\easyaccept.jar" easyaccept.EasyAccept br.ufal.ic.p2.wepayu.Facade tests\us10.txt
 ```
 
+Pela IDE, executar a classe `Main` sem argumentos roda **todos** os testes (us1 a us10, com os `usN_1` em JVM separada); com um argumento (ex.: `tests/us7.txt`) roda só aquele arquivo.
+
 Os arquivos `usN_1.txt` devem rodar **em outra JVM**, imediatamente depois do `usN.txt`, porque verificam a persistência em `wepayu.db`. Os scripts `rodar-testes.sh` e `rodar-testes.bat` já fazem isso.
 
 ## Arquitetura
@@ -73,5 +75,7 @@ src/br/ufal/ic/p2/wepayu/
 **Persistência.** A base completa (empregados + agendas customizadas) é serializada em `wepayu.db`. Arquivo inexistente inicia uma base nova; arquivo existente e corrompido gera erro em vez de ser silenciosamente substituído por uma base vazia.
 
 **Agendas (US9/US10).** Existem por padrão `semanal 5`, `mensal $` e `semanal 2 5`. Novas agendas aceitam `semanal D`, `semanal N D`, `mensal D` e `mensal $`, com as faixas exigidas pelos testes. O período de cálculo vem da própria agenda, o que permite consultar `totalFolha` em datas independentes sem depender de uma chamada anterior de `rodaFolha`.
+
+**Validação nos modelos.** Salário, comissão e taxa sindical nulos ou negativos são recusados pelo próprio modelo com a exceção específica; cartões de ponto, vendas e taxas de serviço são imutáveis e não aceitam valores nulos. A data de referência do calendário (1/1/2005) fica concentrada em `CalendarioFolha`.
 
 **Valores monetários.** O sistema usa `BigDecimal` e trunca para duas casas onde os testes de aceitação exigem esse comportamento.

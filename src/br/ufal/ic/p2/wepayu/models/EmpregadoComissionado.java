@@ -13,7 +13,7 @@ public class EmpregadoComissionado extends EmpregadoAssalariado {
 
     public EmpregadoComissionado(String id, String nome, String endereco, BigDecimal salarioMensal,
                                  BigDecimal taxaComissao)
-            throws NomeNuloException, EnderecoNuloException, SalarioNegativoException, ComissaoNegativaException,
+            throws NomeNuloException, EnderecoNuloException, SalarioNuloException, SalarioNegativoException, ComissaoNegativaException,
             ComissaoNulaException {
         super(id, nome, endereco, salarioMensal, AgendasPadrao.QUINZENAL_SEXTA);
         if (taxaComissao == null) throw new ComissaoNulaException();
@@ -21,7 +21,7 @@ public class EmpregadoComissionado extends EmpregadoAssalariado {
     }
 
     public EmpregadoComissionado(Empregado origem, BigDecimal salarioMensal, BigDecimal taxaComissao)
-            throws SalarioNegativoException, ComissaoNegativaException, ComissaoNulaException {
+            throws SalarioNuloException, SalarioNegativoException, ComissaoNegativaException, ComissaoNulaException {
         super(origem, salarioMensal, AgendasPadrao.QUINZENAL_SEXTA);
         if (taxaComissao == null) throw new ComissaoNulaException();
         setComissao(taxaComissao);

@@ -60,7 +60,7 @@ public abstract class Empregado implements Serializable {
 
     public abstract TipoEmpregado getTipo();
     public abstract BigDecimal getSalarioBase();
-    public abstract void setSalarioBase(BigDecimal valor) throws SalarioNegativoException;
+    public abstract void setSalarioBase(BigDecimal valor) throws SalarioNuloException, SalarioNegativoException;
 
     public final String getId() { return id; }
     public final String getNome() { return nome; }
