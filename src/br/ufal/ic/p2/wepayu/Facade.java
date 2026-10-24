@@ -1,9 +1,6 @@
 package br.ufal.ic.p2.wepayu;
 
-import br.ufal.ic.p2.wepayu.excecoes.SistemaEncerradoException;
-import br.ufal.ic.p2.wepayu.excecoes.WePayUException;
-import br.ufal.ic.p2.wepayu.historico.Acao;
-import br.ufal.ic.p2.wepayu.historico.Comando;
+import br.ufal.ic.p2.wepayu.excecoes.*;
 import br.ufal.ic.p2.wepayu.historico.GerenciadorHistorico;
 import br.ufal.ic.p2.wepayu.persistencia.ArquivoPersistencia;
 import br.ufal.ic.p2.wepayu.repositorio.BaseDados;
@@ -11,170 +8,177 @@ import br.ufal.ic.p2.wepayu.repositorio.ContextoSistema;
 import br.ufal.ic.p2.wepayu.servicos.*;
 
 /**
- * Porta de entrada usada pelos testes de aceitação (EasyAccept): cada comando
- * do script vira um método daqui. A fachada só encaminha o pedido ao serviço
- * certo; desfazer/refazer ficam no {@link GerenciadorHistorico} e a gravação em
- * arquivo no {@link ArquivoPersistencia}.
+ * Fachada usada pelo EasyAccept. Ela apenas traduz os comandos dos scripts para
+ * os serviços da aplicação; regras de negócio, histórico e persistência ficam
+ * em componentes próprios.
  */
 public class Facade {
 
-    private static final String ARQUIVO_DADOS = "wepayu.db";
+    private static final String ARQUIVO_PERSISTENCIA = "wepayu.db";
 
-    private final ArquivoPersistencia arquivo = new ArquivoPersistencia(ARQUIVO_DADOS);
-    private final ContextoSistema contexto = new ContextoSistema(arquivo.carregarOuCriar());
-    private final GerenciadorHistorico historico = new GerenciadorHistorico(contexto);
+    private final ArquivoPersistencia persistencia;
+    private final ContextoSistema contexto;
+    private final GerenciadorHistorico historico;
+    private final ServicoEmpregados empregados;
+    private final ServicoAtributos atributos;
+    private final ServicoAlteracoes alteracoes;
+    private final ServicoLancamentos lancamentos;
+    private final ServicoConsultas consultas;
+    private final ServicoFolha folha;
+    private final ServicoAgendas agendas;
 
-    private final ServicoEmpregados empregados = new ServicoEmpregados(contexto);
-    private final ServicoAtributos atributos = new ServicoAtributos(contexto);
-    private final ServicoAlteracoes alteracoes = new ServicoAlteracoes(contexto);
-    private final ServicoLancamentos lancamentos = new ServicoLancamentos(contexto);
-    private final ServicoConsultas consultas = new ServicoConsultas(contexto);
-    private final ServicoFolha folha = new ServicoFolha(contexto);
-    private final ServicoAgendas agendas = new ServicoAgendas(contexto);
+    private boolean encerrado;
 
-    private boolean encerrado = false;
+    public Facade() {
+        persistencia = new ArquivoPersistencia(ARQUIVO_PERSISTENCIA);
+        contexto = new ContextoSistema(persistencia.carregarOuCriar());
+        historico = new GerenciadorHistorico(contexto);
+        empregados = new ServicoEmpregados(contexto);
+        atributos = new ServicoAtributos(contexto);
+        alteracoes = new ServicoAlteracoes(contexto);
+        lancamentos = new ServicoLancamentos(contexto);
+        consultas = new ServicoConsultas(contexto);
+        folha = new ServicoFolha(contexto);
+        agendas = new ServicoAgendas(contexto);
+    }
 
-    // ---- sistema
+    private void checarEncerrado() throws SistemaEncerradoException {
+        if (encerrado) throw new SistemaEncerradoException();
+    }
+
+    // comandos gerais
 
     public void zerarSistema() throws WePayUException {
-        executar(() -> contexto.setBase(new BaseDados()));
+        checarEncerrado();
+        historico.executar(() -> contexto.setBase(new BaseDados()));
     }
 
     public void encerrarSistema() throws WePayUException {
-        exigirAberto();
-        arquivo.salvar(contexto.getBase());
+        checarEncerrado();
+        persistencia.salvar(contexto.getBase());
         encerrado = true;
     }
 
     public void undo() throws WePayUException {
-        exigirAberto();
+        checarEncerrado();
         historico.desfazer();
     }
 
     public void redo() throws WePayUException {
-        exigirAberto();
+        checarEncerrado();
         historico.refazer();
     }
 
     public String getNumeroDeEmpregados() throws WePayUException {
-        return consultar(() -> String.valueOf(empregados.getNumeroDeEmpregados()));
+        checarEncerrado();
+        return String.valueOf(empregados.getNumeroDeEmpregados());
     }
 
-    // ---- empregados
+    // empregados
 
-    public String criarEmpregado(String nome, String endereco, String tipo, String salario)
-            throws WePayUException {
-        return executar(() -> empregados.criarEmpregado(nome, endereco, tipo, salario));
+    public String criarEmpregado(String nome, String endereco, String tipo, String salario) throws WePayUException {
+        checarEncerrado();
+        return historico.executar(() -> empregados.criarEmpregado(nome, endereco, tipo, salario));
     }
 
     public String criarEmpregado(String nome, String endereco, String tipo, String salario, String comissao)
             throws WePayUException {
-        return executar(() -> empregados.criarEmpregado(nome, endereco, tipo, salario, comissao));
+        checarEncerrado();
+        return historico.executar(() -> empregados.criarEmpregado(nome, endereco, tipo, salario, comissao));
     }
 
     public void removerEmpregado(String emp) throws WePayUException {
-        executar(() -> empregados.removerEmpregado(emp));
+        checarEncerrado();
+        historico.executar(() -> empregados.removerEmpregado(emp));
     }
 
     public String getEmpregadoPorNome(String nome, int indice) throws WePayUException {
-        return consultar(() -> empregados.getEmpregadoPorNome(nome, indice));
+        checarEncerrado();
+        return empregados.getEmpregadoPorNome(nome, indice);
     }
 
     public String getAtributoEmpregado(String emp, String atributo) throws WePayUException {
-        return consultar(() -> atributos.getAtributoEmpregado(emp, atributo));
+        checarEncerrado();
+        return atributos.getAtributoEmpregado(emp, atributo);
     }
 
     public void alteraEmpregado(String emp, String atributo, String valor) throws WePayUException {
-        executar(() -> alteracoes.alterar(emp, atributo, valor));
+        checarEncerrado();
+        historico.executar(() -> alteracoes.alterar(emp, atributo, valor));
     }
 
-    public void alteraEmpregado(String emp, String atributo, String valor, String complemento)
+    public void alteraEmpregado(String emp, String atributo, String valor, String extra) throws WePayUException {
+        checarEncerrado();
+        historico.executar(() -> alteracoes.alterarTipo(emp, atributo, valor, extra));
+    }
+
+    public void alteraEmpregado(String emp, String atributo, String valor, String idSindicato, String taxaSindical)
             throws WePayUException {
-        executar(() -> alteracoes.alterarTipo(emp, atributo, valor, complemento));
-    }
-
-    public void alteraEmpregado(String emp, String atributo, String valor, String idSindicato,
-                                String taxaSindical) throws WePayUException {
-        executar(() -> alteracoes.alterarSindicalizacao(emp, atributo, valor, idSindicato, taxaSindical));
+        checarEncerrado();
+        historico.executar(() -> alteracoes.alterarSindicalizacao(emp, atributo, valor, idSindicato, taxaSindical));
     }
 
     public void alteraEmpregado(String emp, String atributo, String valor1, String banco, String agencia,
                                 String contaCorrente) throws WePayUException {
-        executar(() -> alteracoes.alterarParaBanco(emp, atributo, valor1, banco, agencia, contaCorrente));
+        checarEncerrado();
+        historico.executar(() -> alteracoes.alterarParaBanco(emp, atributo, valor1, banco, agencia, contaCorrente));
     }
 
-    // ---- lançamentos e consultas por período
+    // lançamentos
 
     public void lancaCartao(String emp, String data, String horas) throws WePayUException {
-        executar(() -> lancamentos.lancaCartao(emp, data, horas));
+        checarEncerrado();
+        historico.executar(() -> lancamentos.lancaCartao(emp, data, horas));
     }
 
     public void lancaVenda(String emp, String data, String valor) throws WePayUException {
-        executar(() -> lancamentos.lancaVenda(emp, data, valor));
+        checarEncerrado();
+        historico.executar(() -> lancamentos.lancaVenda(emp, data, valor));
     }
 
     public void lancaTaxaServico(String membro, String data, String valor) throws WePayUException {
-        executar(() -> lancamentos.lancaTaxaServico(membro, data, valor));
+        checarEncerrado();
+        historico.executar(() -> lancamentos.lancaTaxaServico(membro, data, valor));
     }
 
-    public String getHorasNormaisTrabalhadas(String emp, String dataInicial, String dataFinal)
-            throws WePayUException {
-        return consultar(() -> consultas.getHorasNormaisTrabalhadas(emp, dataInicial, dataFinal));
+    // consultas
+
+    public String getHorasNormaisTrabalhadas(String emp, String dataInicial, String dataFinal) throws WePayUException {
+        checarEncerrado();
+        return consultas.getHorasNormaisTrabalhadas(emp, dataInicial, dataFinal);
     }
 
-    public String getHorasTrabalhadas(String emp, String dataInicial, String dataFinal) throws WePayUException {
-        return getHorasNormaisTrabalhadas(emp, dataInicial, dataFinal);
-    }
-
-    public String getHorasExtrasTrabalhadas(String emp, String dataInicial, String dataFinal)
-            throws WePayUException {
-        return consultar(() -> consultas.getHorasExtrasTrabalhadas(emp, dataInicial, dataFinal));
+    public String getHorasExtrasTrabalhadas(String emp, String dataInicial, String dataFinal) throws WePayUException {
+        checarEncerrado();
+        return consultas.getHorasExtrasTrabalhadas(emp, dataInicial, dataFinal);
     }
 
     public String getVendasRealizadas(String emp, String dataInicial, String dataFinal) throws WePayUException {
-        return consultar(() -> consultas.getVendasRealizadas(emp, dataInicial, dataFinal));
+        checarEncerrado();
+        return consultas.getVendasRealizadas(emp, dataInicial, dataFinal);
     }
 
     public String getTaxasServico(String emp, String dataInicial, String dataFinal) throws WePayUException {
-        return consultar(() -> consultas.getTaxasServico(emp, dataInicial, dataFinal));
+        checarEncerrado();
+        return consultas.getTaxasServico(emp, dataInicial, dataFinal);
     }
 
-    // ---- folha e agendas
+    // folha
 
     public String totalFolha(String data) throws WePayUException {
-        return consultar(() -> folha.totalFolha(data));
+        checarEncerrado();
+        return folha.totalFolha(data);
     }
 
     public void rodaFolha(String data, String saida) throws WePayUException {
-        executar(() -> folha.rodaFolha(data, saida));
+        checarEncerrado();
+        historico.executar(() -> folha.rodaFolha(data, saida));
     }
+
+    // US 10
 
     public void criarAgendaDePagamentos(String descricao) throws WePayUException {
-        executar(() -> agendas.criarAgendaDePagamentos(descricao));
-    }
-
-    // ---- infraestrutura dos comandos
-
-    /** Comando que altera dados: entra no histórico e é desfeito se falhar. */
-    private <T> T executar(Comando<T> comando) throws WePayUException {
-        exigirAberto();
-        return historico.executar(comando);
-    }
-
-    private void executar(Acao acao) throws WePayUException {
-        exigirAberto();
-        historico.executar(acao);
-    }
-
-    /** Consulta: não altera nada, então não entra no histórico. */
-    private <T> T consultar(Comando<T> consulta) throws WePayUException {
-        exigirAberto();
-        return consulta.executar();
-    }
-
-    private void exigirAberto() throws SistemaEncerradoException {
-        if (encerrado) {
-            throw new SistemaEncerradoException();
-        }
+        checarEncerrado();
+        historico.executar(() -> agendas.criarAgendaDePagamentos(descricao));
     }
 }

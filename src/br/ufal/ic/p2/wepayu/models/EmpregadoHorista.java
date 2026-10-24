@@ -7,11 +7,10 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 
-/** Recebe por hora trabalhada; horas extras (acima de 8 por dia) valem 1,5 vez a hora normal. */
 public class EmpregadoHorista extends Empregado {
     private static final long serialVersionUID = 1L;
-
-    private static final BigDecimal ADICIONAL_HORA_EXTRA = new BigDecimal("1.5");
+    private static final BigDecimal OITO = new BigDecimal("8");
+    private static final BigDecimal UM_E_MEIO = new BigDecimal("1.5");
 
     private BigDecimal salarioPorHora;
 
@@ -21,48 +20,53 @@ public class EmpregadoHorista extends Empregado {
         setSalarioBase(salarioPorHora);
     }
 
-    public EmpregadoHorista(Empregado origem, BigDecimal salarioPorHora)
-            throws SalarioNuloException, SalarioNegativoException {
+    public EmpregadoHorista(Empregado origem, BigDecimal salarioPorHora) throws SalarioNuloException, SalarioNegativoException {
         super(origem, AgendasPadrao.SEMANAL_SEXTA);
         setSalarioBase(salarioPorHora);
     }
 
-    @Override
-    public TipoEmpregado getTipo() {
-        return TipoEmpregado.HORISTA;
-    }
+    @Override public TipoEmpregado getTipo() { return TipoEmpregado.HORISTA; }
+    @Override public BigDecimal getSalarioBase() { return salarioPorHora; }
 
     @Override
-    public BigDecimal getSalarioBase() {
-        return salarioPorHora;
-    }
-
-    @Override
-    public void setSalarioBase(BigDecimal salario) throws SalarioNuloException, SalarioNegativoException {
-        this.salarioPorHora = exigirSalarioValido(salario);
+    public void setSalarioBase(BigDecimal valor) throws SalarioNuloException, SalarioNegativoException {
+        if (valor == null) throw new SalarioNuloException();
+        if (valor.compareTo(BigDecimal.ZERO) < 0) throw new SalarioNegativoException();
+        salarioPorHora = valor;
+        limparCacheFolha();
     }
 
     @Override
     public void lancarCartao(LocalDate data, BigDecimal horas) throws HorasNaoPositivasException {
+        if (horas.compareTo(BigDecimal.ZERO) <= 0) throw new HorasNaoPositivasException();
         registrarCartao(new CartaoPonto(data, horas));
     }
 
     @Override
     public BigDecimal getHorasNormais(Periodo periodo) {
-        return cartoesNo(periodo).stream().map(CartaoPonto::getHorasNormais).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal total = BigDecimal.ZERO;
+        for (CartaoPonto cartao : cartoesNo(periodo)) {
+            total = total.add(cartao.getHoras().min(OITO));
+        }
+        return total;
     }
 
     @Override
     public BigDecimal getHorasExtras(Periodo periodo) {
-        return cartoesNo(periodo).stream().map(CartaoPonto::getHorasExtras).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal total = BigDecimal.ZERO;
+        for (CartaoPonto cartao : cartoesNo(periodo)) {
+            if (cartao.getHoras().compareTo(OITO) > 0) total = total.add(cartao.getHoras().subtract(OITO));
+        }
+        return total;
     }
 
     @Override
-    protected Contracheque montarContracheque(Periodo periodo, LocalDate data) {
+    protected Contracheque calcularValores(LocalDate data) {
+        Periodo periodo = periodoDesdeUltimoPagamento(data);
         BigDecimal normais = getHorasNormais(periodo);
         BigDecimal extras = getHorasExtras(periodo);
         BigDecimal bruto = normais.multiply(salarioPorHora)
-                .add(extras.multiply(salarioPorHora).multiply(ADICIONAL_HORA_EXTRA))
+                .add(extras.multiply(salarioPorHora).multiply(UM_E_MEIO))
                 .setScale(2, RoundingMode.FLOOR);
         return new ContrachequeHorista(data, getNome(), descricaoMetodoPagamento(), normais, extras, bruto);
     }

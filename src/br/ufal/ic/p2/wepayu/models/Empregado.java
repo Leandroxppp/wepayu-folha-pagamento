@@ -6,18 +6,16 @@ import br.ufal.ic.p2.wepayu.excecoes.*;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
- * Empregado da empresa. Cada tipo (horista, assalariado, comissionado) sabe
- * montar o próprio contracheque; o que é comum a todos (sindicato, método e
- * agenda de pagamento, lançamentos, descontos) fica aqui.
- *
- * <p>Os cartões de ponto e as vendas ficam nesta classe para não se perderem
- * quando o empregado muda de tipo e volta.
+ * Raiz do modelo de empregados. Reúne apenas o estado e os comportamentos que
+ * são realmente comuns aos três tipos; as regras de cálculo ficam nas subclasses.
  */
 public abstract class Empregado implements Serializable {
     private static final long serialVersionUID = 1L;
@@ -26,13 +24,15 @@ public abstract class Empregado implements Serializable {
     private String nome;
     private String endereco;
     private MembroSindicato sindicato;
-    private MetodoPagamento metodoPagamento;
+    private MetodoPagamento metodoPagamento = new EmMaos();
     private AgendaPagamento agenda;
-    private final List<CartaoPonto> cartoes;
-    private final List<ResultadoVenda> vendas;
 
-    /** Data até a qual o empregado já foi pago. */
-    private LocalDate ultimoPagamento;
+    // Histórico é mantido mesmo quando o empregado muda de tipo.
+    private final List<CartaoPonto> cartoes = new ArrayList<>();
+    private final List<ResultadoVenda> vendas = new ArrayList<>();
+
+    private LocalDate ultimoPagamento = CalendarioFolha.vesperaDoInicio();
+    private LocalDate ultimaDataFolha;
     private Contracheque ultimoContracheque;
 
     protected Empregado(String id, String nome, String endereco, AgendaPagamento agenda)
@@ -40,125 +40,80 @@ public abstract class Empregado implements Serializable {
         this.id = id;
         setNome(nome);
         setEndereco(endereco);
-        this.metodoPagamento = new EmMaos();
-        this.agenda = agenda;
-        this.cartoes = new ArrayList<>();
-        this.vendas = new ArrayList<>();
-        this.ultimoPagamento = CalendarioFolha.vesperaDoInicio();
+        this.agenda = Objects.requireNonNull(agenda, "Agenda de pagamento nao pode ser nula.");
     }
 
-    /** Usado na mudança de tipo: leva todos os dados do empregado e passa a usar a agenda do novo tipo. */
-    protected Empregado(Empregado origem, AgendaPagamento agenda) {
+    /** Construtor usado na troca de tipo, preservando estado e histórico. */
+    protected Empregado(Empregado origem, AgendaPagamento novaAgenda) {
         this.id = origem.id;
         this.nome = origem.nome;
         this.endereco = origem.endereco;
         this.sindicato = origem.sindicato;
         this.metodoPagamento = origem.metodoPagamento;
-        this.agenda = agenda;
-        this.cartoes = new ArrayList<>(origem.cartoes);
-        this.vendas = new ArrayList<>(origem.vendas);
+        this.agenda = Objects.requireNonNull(novaAgenda, "Agenda de pagamento nao pode ser nula.");
+        this.cartoes.addAll(origem.cartoes);
+        this.vendas.addAll(origem.vendas);
         this.ultimoPagamento = origem.ultimoPagamento;
-    }
-
-    // ---- identificação e dados pessoais
-
-    public String getId() {
-        return id;
-    }
-
-    public String getNome() {
-        return nome;
-    }
-
-    public final void setNome(String nome) throws NomeNuloException {
-        if (nome == null || nome.trim().isEmpty()) {
-            throw new NomeNuloException();
-        }
-        this.nome = nome;
-    }
-
-    public String getEndereco() {
-        return endereco;
-    }
-
-    public final void setEndereco(String endereco) throws EnderecoNuloException {
-        if (endereco == null || endereco.trim().isEmpty()) {
-            throw new EnderecoNuloException();
-        }
-        this.endereco = endereco;
+        // O tipo mudou; um cache do tipo anterior não deve ser reaproveitado.
+        this.ultimaDataFolha = null;
+        this.ultimoContracheque = null;
     }
 
     public abstract TipoEmpregado getTipo();
-
-    // ---- salário e comissão
-
-    /** Salário por hora (horista) ou mensal (assalariado e comissionado). */
     public abstract BigDecimal getSalarioBase();
+    public abstract void setSalarioBase(BigDecimal valor) throws SalarioNuloException, SalarioNegativoException;
 
-    public abstract void setSalarioBase(BigDecimal salario) throws SalarioNuloException, SalarioNegativoException;
+    public final String getId() { return id; }
+    public final String getNome() { return nome; }
+    public final String getEndereco() { return endereco; }
+    public final MetodoPagamento getMetodoPagamento() { return metodoPagamento; }
+    public final AgendaPagamento getAgenda() { return agenda; }
+    public final LocalDate getUltimoPagamento() { return ultimoPagamento; }
+
+    public final void setNome(String nome) throws NomeNuloException {
+        if (nome == null || nome.trim().isEmpty()) throw new NomeNuloException();
+        this.nome = nome;
+    }
+
+    public final void setEndereco(String endereco) throws EnderecoNuloException {
+        if (endereco == null || endereco.trim().isEmpty()) throw new EnderecoNuloException();
+        this.endereco = endereco;
+    }
+
+    public final void setMetodoPagamento(MetodoPagamento metodoPagamento) {
+        this.metodoPagamento = Objects.requireNonNull(
+                metodoPagamento, "Metodo de pagamento nao pode ser nulo.");
+    }
+
+    public final void setAgenda(AgendaPagamento agenda) {
+        this.agenda = Objects.requireNonNull(agenda, "Agenda de pagamento nao pode ser nula.");
+        limparCacheFolha();
+    }
+
+    public final boolean isSindicalizado() {
+        return sindicato != null;
+    }
+
+    public final MembroSindicato getSindicato() throws EmpregadoNaoSindicalizadoException {
+        if (sindicato == null) throw new EmpregadoNaoSindicalizadoException();
+        return sindicato;
+    }
+
+    public final void filiar(MembroSindicato membro) {
+        this.sindicato = Objects.requireNonNull(membro, "Membro do sindicato nao pode ser nulo.");
+    }
+
+    public final void desfiliar() {
+        this.sindicato = null;
+    }
 
     public BigDecimal getComissao() throws EmpregadoNaoComissionadoException {
         throw new EmpregadoNaoComissionadoException();
     }
 
-    public void setComissao(BigDecimal comissao)
-            throws EmpregadoNaoComissionadoException, ComissaoNulaException, ComissaoNegativaException {
+    public void setComissao(BigDecimal valor) throws EmpregadoNaoComissionadoException, ComissaoNegativaException, ComissaoNulaException {
         throw new EmpregadoNaoComissionadoException();
     }
-
-    protected static BigDecimal exigirSalarioValido(BigDecimal salario)
-            throws SalarioNuloException, SalarioNegativoException {
-        if (salario == null) {
-            throw new SalarioNuloException();
-        }
-        if (salario.signum() < 0) {
-            throw new SalarioNegativoException();
-        }
-        return salario;
-    }
-
-    // ---- sindicato, método e agenda de pagamento
-
-    public boolean isSindicalizado() {
-        return sindicato != null;
-    }
-
-    public MembroSindicato getSindicato() throws EmpregadoNaoSindicalizadoException {
-        if (sindicato == null) {
-            throw new EmpregadoNaoSindicalizadoException();
-        }
-        return sindicato;
-    }
-
-    public void filiar(MembroSindicato membro) {
-        this.sindicato = membro;
-    }
-
-    public void desfiliar() {
-        this.sindicato = null;
-    }
-
-    public MetodoPagamento getMetodoPagamento() {
-        return metodoPagamento;
-    }
-
-    public void setMetodoPagamento(MetodoPagamento metodoPagamento) {
-        this.metodoPagamento = metodoPagamento;
-    }
-
-    public AgendaPagamento getAgenda() {
-        return agenda;
-    }
-
-    public void setAgenda(AgendaPagamento agenda) {
-        this.agenda = agenda;
-    }
-
-    public LocalDate getUltimoPagamento() {
-        return ultimoPagamento;
-    }
-
-    // ---- lançamentos e consultas por período
 
     public void lancarCartao(LocalDate data, BigDecimal horas)
             throws EmpregadoNaoHoristaException, HorasNaoPositivasException {
@@ -182,80 +137,98 @@ public abstract class Empregado implements Serializable {
         throw new EmpregadoNaoComissionadoException();
     }
 
-    public BigDecimal getTaxasServico(Periodo periodo) throws EmpregadoNaoSindicalizadoException {
-        return getSindicato().totalTaxasServico(periodo);
+    public final BigDecimal getTaxasServico(Periodo periodo) throws EmpregadoNaoSindicalizadoException {
+        BigDecimal total = BigDecimal.ZERO;
+        for (TaxaServico taxa : periodo.filtrar(getSindicato().getTaxasServico())) {
+            total = total.add(taxa.getValor());
+        }
+        return total;
     }
 
-    protected void registrarCartao(CartaoPonto cartao) {
-        cartoes.add(cartao);
-    }
-
-    protected void registrarVenda(ResultadoVenda venda) {
-        vendas.add(venda);
-    }
-
-    protected List<CartaoPonto> cartoesNo(Periodo periodo) {
-        return periodo.filtrar(Collections.unmodifiableList(cartoes));
-    }
-
-    protected List<ResultadoVenda> vendasNo(Periodo periodo) {
-        return periodo.filtrar(Collections.unmodifiableList(vendas));
-    }
-
-    // ---- pagamento
-
-    public boolean ehDiaDePagamento(LocalDate data) {
+    public final boolean ehDiaDePagamento(LocalDate data) {
         return agenda.ehDiaDePagamento(data);
     }
 
-    /** Salário bruto que o empregado receberia na data, sem registrar pagamento nenhum. */
-    public BigDecimal calcularBruto(LocalDate data) {
-        Contracheque contracheque = foiPagoEm(data) ? ultimoContracheque : montarContracheque(periodoAte(data), data);
-        return contracheque.getBruto();
+    /** Valor bruto previsto, sem alterar o estado do empregado. */
+    public final BigDecimal calcularBruto(LocalDate data) {
+        if (data.equals(ultimaDataFolha) && ultimoContracheque != null) {
+            return ultimoContracheque.getBruto();
+        }
+        return calcularValores(data).getBruto();
     }
 
-    /**
-     * Paga o empregado na data: calcula o contracheque, desconta o que o
-     * sindicato cobra (nunca mais que o bruto) e registra o pagamento. Pagar
-     * duas vezes na mesma data devolve o mesmo contracheque.
-     */
-    public Contracheque pagar(LocalDate data) {
-        if (foiPagoEm(data)) {
+    /** Efetiva o pagamento e devolve o contracheque correspondente. */
+    public final Contracheque pagar(LocalDate data) {
+        if (data.equals(ultimaDataFolha) && ultimoContracheque != null) {
             return ultimoContracheque;
         }
-        Contracheque contracheque = montarContracheque(periodoAte(data), data);
-        descontarSindicato(contracheque, data);
+        Contracheque contracheque = calcularValores(data);
+        BigDecimal desconto = calcularDescontos(data, contracheque.getBruto(), true);
+        contracheque.aplicarDescontos(desconto);
         ultimoPagamento = data;
+        ultimaDataFolha = data;
         ultimoContracheque = contracheque;
         return contracheque;
     }
 
-    /** Monta o contracheque (sem descontos) do período: cada tipo de empregado calcula do seu jeito. */
-    protected abstract Contracheque montarContracheque(Periodo periodo, LocalDate data);
+    protected abstract Contracheque calcularValores(LocalDate data);
 
-    protected String descricaoMetodoPagamento() {
+    protected final Periodo periodoDesdeUltimoPagamento(LocalDate data) {
+        // O período de cálculo é definido pela agenda, não por uma chamada anterior de rodaFolha.
+        // Assim totalFolha pode ser consultado isoladamente em várias datas e ainda produz o
+        // valor correspondente àquele período de pagamento.
+        return Periodo.apos(agenda.pagamentoAnterior(data), data);
+    }
+
+    protected final List<CartaoPonto> cartoesNo(Periodo periodo) {
+        return periodo.filtrar(cartoes);
+    }
+
+    protected final List<ResultadoVenda> vendasNo(Periodo periodo) {
+        return periodo.filtrar(vendas);
+    }
+
+    protected final void registrarCartao(CartaoPonto cartao) {
+        cartoes.add(cartao);
+        limparCacheFolha();
+    }
+
+    protected final void registrarVenda(ResultadoVenda venda) {
+        vendas.add(venda);
+        limparCacheFolha();
+    }
+
+    protected final String descricaoMetodoPagamento() {
         return metodoPagamento.descricao(endereco);
     }
 
-    private boolean foiPagoEm(LocalDate data) {
-        return ultimoContracheque != null && ultimoContracheque.getData().equals(data);
+    private BigDecimal calcularDescontos(LocalDate data, BigDecimal bruto, boolean persistir) {
+        if (sindicato == null) return BigDecimal.ZERO.setScale(2);
+
+        long dias = ChronoUnit.DAYS.between(sindicato.getUltimoPagamentoSindical(), data);
+        BigDecimal taxaSindical = sindicato.getTaxaSindical().multiply(BigDecimal.valueOf(dias));
+        BigDecimal servicos = BigDecimal.ZERO;
+        List<TaxaServico> pendentes = new ArrayList<>();
+        for (TaxaServico taxa : sindicato.getTaxasServico()) {
+            if (!taxa.isPaga() && !taxa.getData().isAfter(data)) {
+                servicos = servicos.add(taxa.getValor());
+                pendentes.add(taxa);
+            }
+        }
+
+        BigDecimal devido = taxaSindical.add(servicos).setScale(2, RoundingMode.FLOOR);
+        if (devido.compareTo(bruto) > 0) {
+            return bruto.setScale(2, RoundingMode.FLOOR);
+        }
+        if (persistir) {
+            sindicato.setUltimoPagamentoSindical(data);
+            for (TaxaServico taxa : pendentes) taxa.setPaga(true);
+        }
+        return devido;
     }
 
-    /** O período começa depois do pagamento anterior da agenda, ou do último pagamento efetivo, o que for mais recente. */
-    private Periodo periodoAte(LocalDate data) {
-        LocalDate anterior = agenda.pagamentoAnterior(data);
-        return Periodo.apos(anterior.isAfter(ultimoPagamento) ? anterior : ultimoPagamento, data);
-    }
-
-    private void descontarSindicato(Contracheque contracheque, LocalDate data) {
-        if (sindicato == null) {
-            return;
-        }
-        BigDecimal debito = sindicato.calcularDebito(data);
-        boolean pagaTudo = debito.compareTo(contracheque.getBruto()) <= 0;
-        contracheque.aplicarDescontos(pagaTudo ? debito : contracheque.getBruto());
-        if (pagaTudo) {
-            sindicato.quitar(data);
-        }
+    protected final void limparCacheFolha() {
+        ultimaDataFolha = null;
+        ultimoContracheque = null;
     }
 }

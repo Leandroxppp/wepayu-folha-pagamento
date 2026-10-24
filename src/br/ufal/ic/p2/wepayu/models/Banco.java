@@ -13,43 +13,18 @@ public class Banco implements MetodoPagamento {
 
     public Banco(String banco, String agencia, String contaCorrente)
             throws BancoNuloException, AgenciaNulaException, ContaCorrenteNulaException {
-        if (vazio(banco)) {
-            throw new BancoNuloException();
-        }
-        if (vazio(agencia)) {
-            throw new AgenciaNulaException();
-        }
-        if (vazio(contaCorrente)) {
-            throw new ContaCorrenteNulaException();
-        }
+        if (banco == null || banco.trim().isEmpty()) throw new BancoNuloException();
+        if (agencia == null || agencia.trim().isEmpty()) throw new AgenciaNulaException();
+        if (contaCorrente == null || contaCorrente.trim().isEmpty()) throw new ContaCorrenteNulaException();
         this.banco = banco;
         this.agencia = agencia;
         this.contaCorrente = contaCorrente;
     }
 
-    private static boolean vazio(String texto) {
-        return texto == null || texto.trim().isEmpty();
-    }
-
-    @Override
-    public String getBanco() {
-        return banco;
-    }
-
-    @Override
-    public String getAgencia() {
-        return agencia;
-    }
-
-    @Override
-    public String getContaCorrente() {
-        return contaCorrente;
-    }
-
-    @Override
-    public String getTag() {
-        return "banco";
-    }
+    @Override public String getBanco() { return banco; }
+    @Override public String getAgencia() { return agencia; }
+    @Override public String getContaCorrente() { return contaCorrente; }
+    @Override public String getTag() { return "banco"; }
 
     @Override
     public String descricao(String enderecoEmpregado) {

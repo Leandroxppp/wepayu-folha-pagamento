@@ -1,71 +1,81 @@
-# WePayU - Sistema de Folha de Pagamento
+# WePayU — Sistema de Folha de Pagamento
 
-Trabalho da disciplina de Projeto de Sistemas de Informacao (UFAL). Implementa as
-User Stories 1 a 10: cadastro de empregados, cartao de ponto, vendas, taxas de
-sindicato, folha de pagamento, undo/redo, persistencia entre execucoes e (milestone 2)
-agendas de pagamento, inclusive customizadas.
+Projeto da disciplina de Projeto de Sistemas de Informação (UFAL). Esta versão implementa as **User Stories 1 a 10**, incluindo persistência, undo/redo, escolha de agenda de pagamento (US9) e criação de agendas customizadas (US10).
 
-Passa em todos os testes de aceitacao (us1 a us10, com as variantes `_1` de persistencia).
+## Estado dos testes
+
+A suíte incluída no repositório passa integralmente:
+
+- US1–US8 e persistências: **590 verificações**;
+- US9 + US9_1: **104 verificações**;
+- US10 + US10_1: **92 verificações**;
+- total: **786 verificações, 0 falhas**.
+
+> O arquivo `tests/us9.txt` recebido tinha um erro de digitação em uma linha (`1292,30totalFolha`). Foi corrigido apenas o espaço ausente (`1292,30 totalFolha`), sem alterar o caso de teste nem o valor esperado.
 
 ## Como rodar
 
-Linux / Mac: `./rodar-testes.sh` compila e roda tudo. Manualmente:
+### Linux / macOS
 
-```
-javac -d bin -cp lib/easyaccept.jar $(find src -name "*.java")
-java -cp bin:lib/easyaccept.jar easyaccept.EasyAccept br.ufal.ic.p2.wepayu.Facade tests/us1.txt
-```
-
-Windows (PowerShell):
-
-```
-javac -d bin -cp lib\easyaccept.jar (Get-ChildItem -Recurse -Filter *.java src | % FullName)
-java -cp "bin;lib\easyaccept.jar" easyaccept.EasyAccept br.ufal.ic.p2.wepayu.Facade tests\us1.txt
+```bash
+./rodar-testes.sh
 ```
 
-Os `usN_1.txt` devem rodar em uma execucao SEPARADA da JVM logo depois do `usN.txt`
-(sem `zerarSistema`), pois testam os dados gravados em `wepayu.db`.
+Ou manualmente:
 
-## Estrutura
-
+```bash
+rm -rf bin && mkdir bin
+javac -encoding UTF-8 -d bin -cp lib/easyaccept.jar $(find src -name "*.java")
+java -cp bin:lib/easyaccept.jar easyaccept.EasyAccept br.ufal.ic.p2.wepayu.Facade tests/us10.txt
 ```
+
+### Windows
+
+Use `rodar-testes.bat` ou compile pelo PowerShell:
+
+```powershell
+Remove-Item -Recurse -Force bin -ErrorAction SilentlyContinue
+New-Item -ItemType Directory bin | Out-Null
+javac -encoding UTF-8 -d bin -cp lib\easyaccept.jar (Get-ChildItem -Recurse -Filter *.java src | % FullName)
+java -cp "bin;lib\easyaccept.jar" easyaccept.EasyAccept br.ufal.ic.p2.wepayu.Facade tests\us10.txt
+```
+
+Pela IDE, executar a classe `Main` sem argumentos roda **todos** os testes (us1 a us10, com os `usN_1` em JVM separada); com um argumento (ex.: `tests/us7.txt`) roda só aquele arquivo.
+
+Os arquivos `usN_1.txt` devem rodar **em outra JVM**, imediatamente depois do `usN.txt`, porque verificam a persistência em `wepayu.db`. Os scripts `rodar-testes.sh` e `rodar-testes.bat` já fazem isso.
+
+## Arquitetura
+
+```text
 src/br/ufal/ic/p2/wepayu/
-  Facade.java        -> so traduz comando do script em chamada de servico
-  servicos/          -> regras de aplicacao: cadastro, atributos, alteracoes, lancamentos,
-                        consultas por periodo, folha e agendas
-  models/            -> Empregado (Horista, Assalariado, Comissionado), Contracheque,
-                        MembroSindicato, MetodoPagamento, lancamentos
-  agenda/            -> AgendaPagamento (Semanal, Mensal), FabricaAgendas, AgendasPadrao
-  repositorio/       -> BaseDados, RepositorioEmpregados, RepositorioAgendas, ContextoSistema
-  historico/         -> GerenciadorHistorico (undo/redo)
-  persistencia/      -> ArquivoPersistencia, Serializacao
-  relatorio/         -> RelatorioFolha e suas secoes
-  excecoes/          -> WePayUException (classe-mae) e uma subclasse por erro
-  util/              -> Entrada (texto -> numero/data) e Formatos
+├── Facade.java          # interface fina usada pelo EasyAccept
+├── agenda/              # regras e fábrica de agendas de pagamento
+├── excecoes/            # hierarquia WePayUException + uma classe por erro
+├── historico/           # undo/redo (Memento)
+├── models/              # entidades e regras polimórficas dos empregados
+├── persistencia/        # serialização e arquivo wepayu.db
+├── relatorio/           # geração do relatório da folha
+├── repositorio/         # armazenamento de empregados e agendas
+├── servicos/            # casos de uso: cadastro, alteração, folha, consultas...
+└── util/                # parsing e formatação
 ```
 
-## Decisoes de projeto
+### Decisões principais
 
-- **Polimorfismo no calculo**: cada tipo de empregado monta o proprio `Contracheque`
-  (`montarContracheque`); nao ha `instanceof` na folha. O relatorio usa o padrao Visitor
-  (`VisitanteContracheque`) para separar os contracheques por secao.
-- **Agendas (US9/US10)**: `AgendaPagamento` diz se uma data e dia de pagamento, qual foi o
-  pagamento anterior e quanto do salario mensal cabe em cada pagamento
-  (`semanal N D`: salario*12*N/52; `mensal`: salario inteiro). A contagem das semanas parte de
-  1/1/2005 (`CalendarioFolha.DATA_INICIAL`), unica data fixa do sistema, como nos testes.
-  O periodo pago vai do pagamento anterior da agenda (ou do ultimo pagamento efetivo, o que for
-  mais recente) ate a data. Ao mudar o tipo do empregado a agenda volta para a padrao do novo tipo.
-- **Encapsulamento**: atributos privados; os modelos validam seus proprios valores (nome, salario,
-  comissao, horas, taxa...) e entregam listas somente-leitura.
-- **Troca de tipo** mantem cartoes de ponto, vendas, sindicato e metodo de pagamento. Virar
-  comissionado exige informar a comissao.
-- **Undo/redo**: antes de cada comando guarda-se uma copia serializada da base; se o comando falha a
-  base e restaurada, se da certo a copia vai para a pilha de desfazer.
-- **Persistencia**: `encerrarSistema` grava `wepayu.db` (serializacao Java). Erro ao gravar vira
-  `FalhaPersistenciaException`; arquivo ilegivel gera aviso no erro padrao e o sistema comeca vazio.
-- **Arredondamento**: valores calculados sao truncados em 2 casas (como nos arquivos de `ok/`).
-- **Contracheque nunca negativo**: se taxa sindical + taxas de servico passam do bruto, o desconto
-  fica limitado ao bruto e o restante continua pendente para a proxima folha.
-- **Erros**: todos estendem `WePayUException`; cada erro tem sua classe (nome terminado em `Exception`).
+**Responsabilidades separadas.** A antiga classe monolítica de sistema foi removida. Cadastro, lançamentos, consultas, folha, relatório, histórico e persistência ficam em componentes diferentes. A `Facade` somente verifica se o sistema está aberto e encaminha cada comando ao serviço apropriado.
 
-Obs.: `tests/us9.txt` tinha um erro de digitacao (`1292,30totalFolha`, sem espaco), corrigido nesta copia.
+**Polimorfismo no cálculo.** Cada subtipo de `Empregado` calcula seu próprio pagamento e produz seu próprio `Contracheque`; a folha não usa cadeias de `instanceof` para decidir como pagar horistas, assalariados e comissionados.
+
+**Encapsulamento.** Os atributos do empregado são privados. Cartões de ponto e vendas permanecem internos ao modelo e são manipulados por métodos de domínio. As taxas de serviço expostas pelo sindicato são somente leitura.
+
+**Troca de tipo sem perda de histórico.** Cartões de ponto e vendas são preservados quando um empregado muda de tipo e volta ao tipo anterior.
+
+**Undo/redo.** O `GerenciadorHistorico` guarda snapshots serializados da base antes de cada comando mutável. Se um comando falha, o estado anterior é restaurado e a operação não entra na pilha de undo.
+
+**Persistência.** A base completa (empregados + agendas customizadas) é serializada em `wepayu.db`. Arquivo inexistente inicia uma base nova; arquivo existente e corrompido gera erro em vez de ser silenciosamente substituído por uma base vazia.
+
+**Agendas (US9/US10).** Existem por padrão `semanal 5`, `mensal $` e `semanal 2 5`. Novas agendas aceitam `semanal D`, `semanal N D`, `mensal D` e `mensal $`, com as faixas exigidas pelos testes. O período de cálculo vem da própria agenda, o que permite consultar `totalFolha` em datas independentes sem depender de uma chamada anterior de `rodaFolha`.
+
+**Validação nos modelos.** Salário, comissão e taxa sindical nulos ou negativos são recusados pelo próprio modelo com a exceção específica; cartões de ponto, vendas e taxas de serviço são imutáveis e não aceitam valores nulos. A data de referência do calendário (1/1/2005) fica concentrada em `CalendarioFolha`.
+
+**Valores monetários.** O sistema usa `BigDecimal` e trunca para duas casas onde os testes de aceitação exigem esse comportamento.

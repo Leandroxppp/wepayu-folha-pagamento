@@ -4,13 +4,9 @@ import br.ufal.ic.p2.wepayu.excecoes.EmpregadoNaoRecebeEmBancoException;
 
 import java.io.Serializable;
 
-/** Forma de pagamento de um empregado (em mãos, correios ou banco). */
+/** Forma de pagamento de um empregado. */
 public interface MetodoPagamento extends Serializable {
-
-    /** emMaos / correios / banco - usado em getAtributoEmpregado e alteraEmpregado. */
     String getTag();
-
-    /** Texto que aparece no relatório da folha. */
     String descricao(String enderecoEmpregado);
 
     default String getBanco() throws EmpregadoNaoRecebeEmBancoException {
