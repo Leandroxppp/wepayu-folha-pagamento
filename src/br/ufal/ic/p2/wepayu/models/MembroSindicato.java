@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /** Dados sindicais de um empregado. */
 public class MembroSindicato implements Serializable {
@@ -34,13 +35,17 @@ public class MembroSindicato implements Serializable {
         if (taxaSindical.compareTo(BigDecimal.ZERO) < 0) throw new TaxaSindicalNegativaException();
         this.id = id;
         this.taxaSindical = taxaSindical;
-        this.ultimoPagamentoSindical = ultimoPagamento;
+        this.ultimoPagamentoSindical = Objects.requireNonNull(
+                ultimoPagamento, "Data do ultimo pagamento sindical nao pode ser nula.");
     }
 
     public String getId() { return id; }
     public BigDecimal getTaxaSindical() { return taxaSindical; }
     public LocalDate getUltimoPagamentoSindical() { return ultimoPagamentoSindical; }
-    public void setUltimoPagamentoSindical(LocalDate data) { this.ultimoPagamentoSindical = data; }
+    public void setUltimoPagamentoSindical(LocalDate data) {
+        this.ultimoPagamentoSindical = Objects.requireNonNull(
+                data, "Data do ultimo pagamento sindical nao pode ser nula.");
+    }
 
     public void setTaxaSindical(BigDecimal valor) throws TaxaSindicalNulaException, TaxaSindicalNegativaException {
         if (valor == null) throw new TaxaSindicalNulaException();

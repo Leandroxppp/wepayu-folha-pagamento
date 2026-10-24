@@ -11,6 +11,7 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Raiz do modelo de empregados. Reúne apenas o estado e os comportamentos que
@@ -39,7 +40,7 @@ public abstract class Empregado implements Serializable {
         this.id = id;
         setNome(nome);
         setEndereco(endereco);
-        this.agenda = agenda;
+        this.agenda = Objects.requireNonNull(agenda, "Agenda de pagamento nao pode ser nula.");
     }
 
     /** Construtor usado na troca de tipo, preservando estado e histórico. */
@@ -49,7 +50,7 @@ public abstract class Empregado implements Serializable {
         this.endereco = origem.endereco;
         this.sindicato = origem.sindicato;
         this.metodoPagamento = origem.metodoPagamento;
-        this.agenda = novaAgenda;
+        this.agenda = Objects.requireNonNull(novaAgenda, "Agenda de pagamento nao pode ser nula.");
         this.cartoes.addAll(origem.cartoes);
         this.vendas.addAll(origem.vendas);
         this.ultimoPagamento = origem.ultimoPagamento;
@@ -80,11 +81,12 @@ public abstract class Empregado implements Serializable {
     }
 
     public final void setMetodoPagamento(MetodoPagamento metodoPagamento) {
-        this.metodoPagamento = metodoPagamento;
+        this.metodoPagamento = Objects.requireNonNull(
+                metodoPagamento, "Metodo de pagamento nao pode ser nulo.");
     }
 
     public final void setAgenda(AgendaPagamento agenda) {
-        this.agenda = agenda;
+        this.agenda = Objects.requireNonNull(agenda, "Agenda de pagamento nao pode ser nula.");
         limparCacheFolha();
     }
 
@@ -98,7 +100,7 @@ public abstract class Empregado implements Serializable {
     }
 
     public final void filiar(MembroSindicato membro) {
-        this.sindicato = membro;
+        this.sindicato = Objects.requireNonNull(membro, "Membro do sindicato nao pode ser nulo.");
     }
 
     public final void desfiliar() {
