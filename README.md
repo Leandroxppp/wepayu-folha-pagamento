@@ -1,6 +1,6 @@
 # WePayU — Sistema de Folha de Pagamento
 
-Projeto da disciplina de **Projeto de Sistemas de Informação (UFAL)**.
+Projeto da disciplina de **Projeto de Programação 2 (UFAL)**.
 
 Esta versão implementa as **User Stories 1 a 10**, incluindo persistência, undo/redo, escolha de agenda de pagamento (US9) e criação de agendas customizadas (US10).
 
