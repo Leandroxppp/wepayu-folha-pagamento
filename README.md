@@ -42,7 +42,7 @@ java -cp "bin;lib\easyaccept.jar" easyaccept.EasyAccept br.ufal.ic.p2.wepayu.Fac
 
 Pela IDE, executar a classe `Main` sem argumentos roda **todos** os testes (us1 a us10, com os `usN_1` em JVM separada); com um argumento (ex.: `tests/us7.txt`) roda só aquele arquivo.
 
-Os arquivos `usN_1.txt` devem rodar **em outra JVM**, imediatamente depois do `usN.txt`, porque verificam a persistência em `wepayu.db`. Os scripts `rodar-testes.sh` e `rodar-testes.bat` já fazem isso.
+Os arquivos `usN_1.txt` devem rodar **em outra JVM**, imediatamente depois do `usN.txt`, porque verificam a persistência em `wepayu.db`. Os scripts `rodar-testes.sh` e `rodar-testes.bat` já fazem isso. Ambos compilam **todos os arquivos `.java`** antes de iniciar a suíte, evitando que código-fonte órfão ou quebrado passe despercebido.
 
 ## Arquitetura
 

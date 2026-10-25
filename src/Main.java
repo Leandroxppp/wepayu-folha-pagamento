@@ -1,6 +1,7 @@
 import easyaccept.EasyAccept;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,7 +18,7 @@ public class Main {
 
     private static final int TOTAL_US = 10;
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) throws IOException, InterruptedException {
         if (args.length > 0) {
             EasyAccept.main(new String[]{"br.ufal.ic.p2.wepayu.Facade", args[0]});
             return;
@@ -37,7 +38,7 @@ public class Main {
     }
 
     /** Roda um arquivo de teste em uma JVM nova e devolve true se passou. */
-    private static boolean rodar(String arquivo) throws Exception {
+    private static boolean rodar(String arquivo) throws IOException, InterruptedException {
         List<String> cmd = new ArrayList<>();
         cmd.add(System.getProperty("java.home") + File.separator + "bin" + File.separator + "java");
         cmd.add("-cp");

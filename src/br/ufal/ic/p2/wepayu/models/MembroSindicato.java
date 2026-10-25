@@ -20,7 +20,7 @@ public class MembroSindicato implements Serializable {
 
     private final String id;
     private BigDecimal taxaSindical;
-    private final List<TaxaServico> taxasServico = new ArrayList<>();
+    private final ArrayList<TaxaServico> taxasServico = new ArrayList<>();
     private LocalDate ultimoPagamentoSindical;
 
     public MembroSindicato(String id, BigDecimal taxaSindical)
@@ -42,7 +42,7 @@ public class MembroSindicato implements Serializable {
     public String getId() { return id; }
     public BigDecimal getTaxaSindical() { return taxaSindical; }
     public LocalDate getUltimoPagamentoSindical() { return ultimoPagamentoSindical; }
-    public void setUltimoPagamentoSindical(LocalDate data) {
+    void setUltimoPagamentoSindical(LocalDate data) {
         this.ultimoPagamentoSindical = Objects.requireNonNull(
                 data, "Data do ultimo pagamento sindical nao pode ser nula.");
     }
@@ -59,6 +59,6 @@ public class MembroSindicato implements Serializable {
     }
 
     public List<TaxaServico> getTaxasServico() {
-        return Collections.unmodifiableList(taxasServico);
+        return Collections.unmodifiableList(new ArrayList<>(taxasServico));
     }
 }

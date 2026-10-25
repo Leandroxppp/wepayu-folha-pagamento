@@ -16,26 +16,29 @@ public class EmpregadoComissionado extends EmpregadoAssalariado {
             throws NomeNuloException, EnderecoNuloException, SalarioNuloException, SalarioNegativoException, ComissaoNegativaException,
             ComissaoNulaException {
         super(id, nome, endereco, salarioMensal, AgendasPadrao.QUINZENAL_SEXTA);
-        if (taxaComissao == null) throw new ComissaoNulaException();
-        setComissao(taxaComissao);
+        this.taxaComissao = validarComissao(taxaComissao);
     }
 
     public EmpregadoComissionado(Empregado origem, BigDecimal salarioMensal, BigDecimal taxaComissao)
             throws SalarioNuloException, SalarioNegativoException, ComissaoNegativaException, ComissaoNulaException {
         super(origem, salarioMensal, AgendasPadrao.QUINZENAL_SEXTA);
-        if (taxaComissao == null) throw new ComissaoNulaException();
-        setComissao(taxaComissao);
+        this.taxaComissao = validarComissao(taxaComissao);
     }
 
     @Override public TipoEmpregado getTipo() { return TipoEmpregado.COMISSIONADO; }
     @Override public BigDecimal getComissao() { return taxaComissao; }
 
     @Override
-    public void setComissao(BigDecimal valor) throws ComissaoNegativaException, ComissaoNulaException {
+    public final void setComissao(BigDecimal valor) throws ComissaoNegativaException, ComissaoNulaException {
+        taxaComissao = validarComissao(valor);
+        limparCacheFolha();
+    }
+
+    private static BigDecimal validarComissao(BigDecimal valor)
+            throws ComissaoNulaException, ComissaoNegativaException {
         if (valor == null) throw new ComissaoNulaException();
         if (valor.compareTo(BigDecimal.ZERO) < 0) throw new ComissaoNegativaException();
-        taxaComissao = valor;
-        limparCacheFolha();
+        return valor;
     }
 
     @Override

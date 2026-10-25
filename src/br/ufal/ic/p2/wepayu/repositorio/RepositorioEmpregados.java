@@ -7,13 +7,12 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /** Guarda os empregados da empresa e sabe procurá-los por identificação, nome e identificação sindical. */
 public class RepositorioEmpregados implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    private final Map<String, Empregado> empregados = new LinkedHashMap<>();
+    private final LinkedHashMap<String, Empregado> empregados = new LinkedHashMap<>();
     private int proximoId = 1;
 
     public String gerarId() {

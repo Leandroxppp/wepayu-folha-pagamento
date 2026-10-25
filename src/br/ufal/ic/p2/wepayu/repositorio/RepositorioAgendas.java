@@ -8,13 +8,12 @@ import br.ufal.ic.p2.wepayu.excecoes.AgendaNaoDisponivelException;
 
 import java.io.Serializable;
 import java.util.LinkedHashMap;
-import java.util.Map;
 
 /** Agendas de pagamento que os empregados podem escolher (as padrão mais as criadas pela direção). */
 public class RepositorioAgendas implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    private final Map<String, AgendaPagamento> agendas = new LinkedHashMap<>();
+    private final LinkedHashMap<String, AgendaPagamento> agendas = new LinkedHashMap<>();
 
     public RepositorioAgendas() {
         for (AgendaPagamento agenda : AgendasPadrao.todas()) {

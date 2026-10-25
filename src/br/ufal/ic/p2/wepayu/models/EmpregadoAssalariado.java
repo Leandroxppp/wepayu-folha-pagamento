@@ -23,7 +23,7 @@ public class EmpregadoAssalariado extends Empregado {
                                    AgendaPagamento agenda)
             throws NomeNuloException, EnderecoNuloException, SalarioNuloException, SalarioNegativoException {
         super(id, nome, endereco, agenda);
-        setSalarioBase(salarioMensal);
+        this.salarioMensal = validarSalario(salarioMensal);
     }
 
     public EmpregadoAssalariado(Empregado origem, BigDecimal salarioMensal) throws SalarioNuloException, SalarioNegativoException {
@@ -33,18 +33,23 @@ public class EmpregadoAssalariado extends Empregado {
     protected EmpregadoAssalariado(Empregado origem, BigDecimal salarioMensal, AgendaPagamento agenda)
             throws SalarioNuloException, SalarioNegativoException {
         super(origem, agenda);
-        setSalarioBase(salarioMensal);
+        this.salarioMensal = validarSalario(salarioMensal);
     }
 
     @Override public TipoEmpregado getTipo() { return TipoEmpregado.ASSALARIADO; }
     @Override public BigDecimal getSalarioBase() { return salarioMensal; }
 
     @Override
-    public void setSalarioBase(BigDecimal valor) throws SalarioNuloException, SalarioNegativoException {
+    public final void setSalarioBase(BigDecimal valor) throws SalarioNuloException, SalarioNegativoException {
+        salarioMensal = validarSalario(valor);
+        limparCacheFolha();
+    }
+
+    private static BigDecimal validarSalario(BigDecimal valor)
+            throws SalarioNuloException, SalarioNegativoException {
         if (valor == null) throw new SalarioNuloException();
         if (valor.compareTo(BigDecimal.ZERO) < 0) throw new SalarioNegativoException();
-        salarioMensal = valor;
-        limparCacheFolha();
+        return valor;
     }
 
     @Override

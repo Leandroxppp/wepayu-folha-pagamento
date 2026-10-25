@@ -28,8 +28,8 @@ public abstract class Empregado implements Serializable {
     private AgendaPagamento agenda;
 
     // Histórico é mantido mesmo quando o empregado muda de tipo.
-    private final List<CartaoPonto> cartoes = new ArrayList<>();
-    private final List<ResultadoVenda> vendas = new ArrayList<>();
+    private final ArrayList<CartaoPonto> cartoes = new ArrayList<>();
+    private final ArrayList<ResultadoVenda> vendas = new ArrayList<>();
 
     private LocalDate ultimoPagamento = CalendarioFolha.vesperaDoInicio();
     private LocalDate ultimaDataFolha;

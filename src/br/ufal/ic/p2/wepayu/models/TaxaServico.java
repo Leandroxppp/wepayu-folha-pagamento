@@ -18,5 +18,5 @@ public final class TaxaServico implements Serializable, Lancamento {
     @Override public LocalDate getData() { return data; }
     public BigDecimal getValor() { return valor; }
     public boolean isPaga() { return paga; }
-    public void setPaga(boolean paga) { this.paga = paga; }
+    void setPaga(boolean paga) { this.paga = paga; }
 }
